@@ -31,7 +31,14 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (success && mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
+        // Check if user needs to reset password
+        final needsReset = await authProvider.needsPasswordReset();
+        
+        if (needsReset) {
+          Navigator.pushReplacementNamed(context, '/password_reset');
+        } else {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
       }
     }
   }
@@ -66,11 +73,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'Monitoring System',
                       style: TextStyle(
                         fontSize: 16,
-                        color: Colors.grey,
+                        color: Colors.grey.withValues(alpha: 0.2),
                       ),
                       textAlign: TextAlign.center,
                     ),

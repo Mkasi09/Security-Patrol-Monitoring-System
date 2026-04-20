@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
 import '../models/user.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
+  final FirestoreService _firestoreService = FirestoreService();
   
   User? _currentUser;
   bool _isLoading = false;
@@ -26,6 +28,7 @@ class AuthProvider with ChangeNotifier {
           name: user.displayName ?? 'User',
           email: user.email ?? '',
           role: 'guard', // Default role, should be fetched from Firestore
+          createdAt: DateTime.now(),
         );
       } else {
         _currentUser = null;
@@ -88,6 +91,27 @@ class AuthProvider with ChangeNotifier {
 
   void clearError() {
     _errorMessage = null;
+    notifyListeners();
+  }
+
+  Future<bool> needsPasswordReset() async {
+    if (_currentUser == null) return false;
+    
+    try {
+      final user = await _firestoreService.getUserById(_currentUser!.id);
+      if (user != null) {
+        _currentUser = user;
+        notifyListeners();
+        return !user.hasResetPassword && user.role == 'guard';
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  void updateCurrentUser(User user) {
+    _currentUser = user;
     notifyListeners();
   }
 }

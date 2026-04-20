@@ -4,6 +4,8 @@ class User {
   final String email;
   final String role; // 'guard' or 'manager'
   final String? phoneNumber;
+  final bool hasResetPassword;
+  final DateTime createdAt;
 
   User({
     required this.id,
@@ -11,6 +13,8 @@ class User {
     required this.email,
     required this.role,
     this.phoneNumber,
+    this.hasResetPassword = false,
+    required this.createdAt,
   });
 
   Map<String, dynamic> toMap() {
@@ -20,6 +24,8 @@ class User {
       'email': email,
       'role': role,
       'phoneNumber': phoneNumber,
+      'hasResetPassword': hasResetPassword,
+      'createdAt': createdAt.toIso8601String(),
     };
   }
 
@@ -30,6 +36,8 @@ class User {
       email: map['email'] ?? '',
       role: map['role'] ?? 'guard',
       phoneNumber: map['phoneNumber'],
+      hasResetPassword: map['hasResetPassword'] ?? false,
+      createdAt: DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
     );
   }
 }

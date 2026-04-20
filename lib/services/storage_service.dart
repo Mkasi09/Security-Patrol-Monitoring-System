@@ -21,7 +21,6 @@ class StorageService {
       final downloadUrl = await snapshot.ref.getDownloadURL();
       return downloadUrl;
     } catch (e) {
-      print('Error uploading image: $e');
       return null;
     }
   }
@@ -34,8 +33,7 @@ class StorageService {
       );
       return image;
     } catch (e) {
-      print('Error picking image: $e');
-      return null;
+            return null;
     }
   }
 
@@ -47,8 +45,7 @@ class StorageService {
       );
       return image;
     } catch (e) {
-      print('Error picking image: $e');
-      return null;
+            return null;
     }
   }
 }

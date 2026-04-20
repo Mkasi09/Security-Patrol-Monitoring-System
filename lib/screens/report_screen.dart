@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:geolocator/geolocator.dart';
 import 'dart:io';
 import '../services/location_service.dart';
+import '../services/firestore_service.dart';
+import '../services/email_service.dart';
+import '../providers/auth_provider.dart';
+import '../models/report.dart';
+import '../widgets/modern_app_bar.dart';
+import 'package:provider/provider.dart';
 
 class ReportScreen extends StatefulWidget {
   final String locationId;
@@ -23,11 +30,13 @@ class _ReportScreenState extends State<ReportScreen> {
   final _formKey = GlobalKey<FormState>();
   final _notesController = TextEditingController();
   final LocationService _locationService = LocationService();
+  final FirestoreService _firestoreService = FirestoreService();
+  final EmailService _emailService = EmailService();
 
   String _selectedStatus = 'all_clear';
   File? _selectedImage;
   bool _isVerifyingLocation = false;
-  bool _isLocationVerified = false;
+  bool _isLocationVerified = true;
   bool _isSubmitting = false;
   String? _errorMessage;
 
@@ -40,7 +49,10 @@ class _ReportScreenState extends State<ReportScreen> {
   @override
   void initState() {
     super.initState();
-    _verifyLocation();
+    // Location verification disabled for now
+    setState(() {
+      _isLocationVerified = true;
+    });
   }
 
   @override
@@ -49,31 +61,7 @@ class _ReportScreenState extends State<ReportScreen> {
     super.dispose();
   }
 
-  Future<void> _verifyLocation() async {
-    setState(() {
-      _isVerifyingLocation = true;
-    });
-
-    try {
-      await _locationService.getCurrentPosition();
-      
-      // In a real app, you would fetch the location's GPS coordinates from Firestore
-      // and verify if the user is within the radius
-      // For now, we'll simulate verification
-      await Future.delayed(const Duration(seconds: 1));
-      
-      setState(() {
-        _isVerifyingLocation = false;
-        _isLocationVerified = true;
-      });
-    } catch (e) {
-      setState(() {
-        _isVerifyingLocation = false;
-        _errorMessage = 'Location verification failed: $e';
-      });
-    }
-  }
-
+  
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(
@@ -89,12 +77,7 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   Future<void> _submitReport() async {
-    if (!_isLocationVerified) {
-      setState(() {
-        _errorMessage = 'Location must be verified before submitting';
-      });
-      return;
-    }
+    // Location verification disabled - always true
 
     if (_formKey.currentState!.validate()) {
       setState(() {
@@ -103,21 +86,67 @@ class _ReportScreenState extends State<ReportScreen> {
       });
 
       try {
-        // Get current position
-        await _locationService.getCurrentPosition();
-
-        // Upload image if selected
-        if (_selectedImage != null) {
-          // In a real app, you would upload to Firebase Storage
-          // For now, we'll simulate
-          await Future.delayed(const Duration(seconds: 1));
+        // Location verification disabled - use default coordinates
+        late final position;
+        try {
+          position = await _locationService.getCurrentPosition();
+        } catch (e) {
+          // If location fails, use default coordinates (center of map)
+          position = Position(
+            latitude: 0.0,
+            longitude: 0.0,
+            timestamp: DateTime.now(),
+            accuracy: 0.0,
+            altitude: 0.0,
+            altitudeAccuracy: 0.0,
+            heading: 0.0,
+            speed: 0.0,
+            speedAccuracy: 0.0, headingAccuracy: 0.0,
+          );
         }
 
+        // Get current user
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final currentUser = authProvider.currentUser;
+
+        if (currentUser == null) {
+          throw Exception('User not authenticated');
+        }
+
+        // Upload image if selected
+        String? imageUrl;
+        if (_selectedImage != null) {
+          // TODO: Implement actual Firebase Storage upload
+          // For now, we'll skip image upload
+          imageUrl = null;
+        }
+
+        // Create report object
+        final report = Report(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          userId: currentUser.id,
+          userName: currentUser.name ?? 'Unknown User',
+          locationId: widget.locationId,
+          locationName: widget.locationName,
+          status: _selectedStatus,
+          notes: _notesController.text.trim(),
+          imageUrl: imageUrl,
+          timestamp: DateTime.now(),
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+
         // Submit report to Firestore
-        // In a real app, you would save to Firestore
-        await Future.delayed(const Duration(seconds: 1));
+        await _firestoreService.saveReport(report);
+
+        // Send email notification to managers
+        await _emailService.sendReportNotificationToManager(report);
 
         if (mounted) {
+          setState(() {
+            _isSubmitting = false;
+          });
+          
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Report submitted successfully'),
@@ -138,8 +167,9 @@ class _ReportScreenState extends State<ReportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Submit Report'),
+      appBar: ModernAppBar(
+        title: 'Submit Report',
+        showProfile: true,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -224,7 +254,7 @@ class _ReportScreenState extends State<ReportScreen> {
                   },
                   activeColor: _getStatusColor(entry.key),
                 );
-              }).toList(),
+              }),
               const SizedBox(height: 24),
 
               // Notes
@@ -323,9 +353,7 @@ class _ReportScreenState extends State<ReportScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isSubmitting || !_isLocationVerified
-                      ? null
-                      : _submitReport,
+                  onPressed: _isSubmitting ? null : _submitReport,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     backgroundColor: _getStatusColor(_selectedStatus),

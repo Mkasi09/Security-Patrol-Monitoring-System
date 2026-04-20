@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../widgets/modern_app_bar.dart';
 
 class QRScannerScreen extends StatefulWidget {
   const QRScannerScreen({super.key});
@@ -38,8 +39,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scan QR Code'),
+      appBar: ModernAppBar(
+        title: 'Scan QR Code',
         actions: [
           IconButton(
             icon: ValueListenableBuilder<CameraFacing>(

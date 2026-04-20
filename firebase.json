@@ -1,1 +1,39 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"magzmotron-5ae93","appId":"1:1091271496660:android:b2ac0e04a4735ffdb53c41","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"magzmotron-5ae93","configurations":{"android":"1:1091271496660:android:b2ac0e04a4735ffdb53c41","ios":"1:1091271496660:ios:05b738dfe51a6f6cb53c41"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "magzmotron-5ae93",
+          "appId": "1:1091271496660:android:b2ac0e04a4735ffdb53c41",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "magzmotron-5ae93",
+          "configurations": {
+            "android": "1:1091271496660:android:b2ac0e04a4735ffdb53c41",
+            "ios": "1:1091271496660:ios:05b738dfe51a6f6cb53c41"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run lint"
+      ]
+    }
+  ]
+}
