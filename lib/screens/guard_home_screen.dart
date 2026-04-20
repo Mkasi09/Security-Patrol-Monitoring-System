@@ -137,7 +137,12 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
               qrCode: result,
             ),
           ),
-        );
+        ).then((_) {
+          // Refresh data when returning from report screen
+          if (mounted) {
+            _loadHomeData();
+          }
+        });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
