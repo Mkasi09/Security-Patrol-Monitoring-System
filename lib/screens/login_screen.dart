@@ -58,29 +58,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(
-                      Icons.security,
-                      size: 80,
-                      color: Colors.blue,
+                    Image.asset(
+                      'assets/logo.png',
+                      height: 120,
                     ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Security Patrol',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Monitoring System',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey.withValues(alpha: 0.2),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
+
                     const SizedBox(height: 48),
                     TextFormField(
                       controller: _emailController,
@@ -131,7 +113,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 24),
+
+                    const SizedBox(height: 8),
                     Consumer<AuthProvider>(
                       builder: (context, authProvider, child) {
                         if (authProvider.isLoading) {

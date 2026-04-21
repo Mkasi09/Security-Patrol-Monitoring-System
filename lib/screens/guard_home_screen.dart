@@ -291,7 +291,11 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.security, color: Colors.white, size: 32),
+          Image.asset(
+                    'assets/logo2.png',
+                    height: 32,
+                    color: Colors.white,
+                  ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
