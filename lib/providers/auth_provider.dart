@@ -85,6 +85,26 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  Future<bool> resetPassword({
+    required String email,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _authService.sendPasswordResetEmail(email);
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> signOut() async {
     await _authService.signOut();
   }
@@ -113,22 +133,5 @@ class AuthProvider with ChangeNotifier {
   void updateCurrentUser(User user) {
     _currentUser = user;
     notifyListeners();
-  }
-
-  Future<void> resetPassword(String email) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      await _authService.sendPasswordResetEmail(email);
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _isLoading = false;
-      _errorMessage = e.toString();
-      notifyListeners();
-      rethrow;
-    }
   }
 }

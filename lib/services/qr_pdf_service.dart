@@ -1,7 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:qr_flutter/qr_flutter.dart';
@@ -14,6 +13,10 @@ class QRPdfService {
     try {
       // Create PDF document
       final pdf = pw.Document();
+      
+      // Load logo image
+      final logoData = await rootBundle.load('assets/logo.png');
+      final logoBytes = logoData.buffer.asUint8List();
       
       // Generate QR code image data
       final qrValidationResult = QrValidator.validate(
@@ -35,135 +38,176 @@ class QRPdfService {
         embeddedImage: null,
       );
       
-      final qrImageData = await painter.toImageData(300);
+      final qrImageData = await painter.toImageData(400); // Larger QR code for better scanning
       final qrImageBytes = qrImageData!.buffer.asUint8List();
       
       // Add PDF page
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(40),
+          margin: const pw.EdgeInsets.all(20),
           build: (pw.Context context) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.center,
-              children: [
-                // Title
-                pw.Text(
-                  'Location QR Code',
-                  style: pw.TextStyle(
-                    fontSize: 24,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 20),
-                
-                // Location Information Card
-                pw.Container(
-                  padding: const pw.EdgeInsets.all(20),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: PdfColors.grey300),
-                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-                  ),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        'Location Details',
-                        style: pw.TextStyle(
-                          fontSize: 18,
-                          fontWeight: pw.FontWeight.bold,
+            return pw.Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.black, width: 2),
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(12)),
+              ),
+              child: pw.Padding(
+                padding: const pw.EdgeInsets.all(20),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    // Header with Logo
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.center,
+                      children: [
+                        pw.Container(
+                          width: 80,
+                          height: 80,
+                          child: pw.Image(
+                            pw.MemoryImage(logoBytes),
+                            fit: pw.BoxFit.contain,
+                          ),
                         ),
-                      ),
-                      pw.SizedBox(height: 10),
-                      _buildInfoRow('Name:', location.name),
-                      pw.SizedBox(height: 5),
-                      _buildInfoRow('Address:', location.address),
-                      pw.SizedBox(height: 5),
-                      _buildInfoRow('QR Code:', location.qrCode),
-                      pw.SizedBox(height: 5),
-                      _buildInfoRow('Location ID:', location.id),
-                    ],
-                  ),
-                ),
-                pw.SizedBox(height: 30),
-                
-                // QR Code
-                pw.Container(
-                  padding: const pw.EdgeInsets.all(20),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: PdfColors.grey300),
-                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-                  ),
-                  child: pw.Column(
-                    children: [
-                      pw.Text(
-                        'Scan this QR Code',
-                        style: pw.TextStyle(
-                          fontSize: 16,
-                          fontWeight: pw.FontWeight.bold,
+                        pw.SizedBox(width: 20),
+                        pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              'Security Patrol',
+                              style: pw.TextStyle(
+                                fontSize: 28,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColors.blue800,
+                              ),
+                            ),
+                            pw.Text(
+                              'Check-in Point',
+                              style: pw.TextStyle(
+                                fontSize: 16,
+                                color: PdfColors.grey600,
+                              ),
+                            ),
+                          ],
                         ),
+                      ],
+                    ),
+                    pw.SizedBox(height: 30),
+                    
+                    // Location Information
+                    pw.Container(
+                      width: double.infinity,
+                      padding: const pw.EdgeInsets.all(20),
+                      decoration: pw.BoxDecoration(
+                        color: PdfColors.blue50,
+                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                        border: pw.Border.all(color: PdfColors.blue200),
                       ),
-                      pw.SizedBox(height: 15),
-                      pw.Image(
-                        pw.MemoryImage(qrImageBytes),
-                        width: 200,
-                        height: 200,
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.center,
+                        children: [
+                          pw.Text(
+                            location.name,
+                            style: pw.TextStyle(
+                              fontSize: 24,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.blue800,
+                            ),
+                            textAlign: pw.TextAlign.center,
+                          ),
+                          pw.SizedBox(height: 8),
+                          pw.Text(
+                            location.address,
+                            style: pw.TextStyle(
+                              fontSize: 16,
+                              color: PdfColors.grey700,
+                            ),
+                            textAlign: pw.TextAlign.center,
+                          ),
+                        ],
                       ),
-                      pw.SizedBox(height: 10),
-                      pw.Text(
-                        location.qrCode,
-                        style: pw.TextStyle(
-                          fontSize: 12,
-                          fontStyle: pw.FontStyle.italic,
-                        ),
+                    ),
+                    pw.SizedBox(height: 40),
+                    
+                    // QR Code - Large and prominent
+                    pw.Container(
+                      padding: const pw.EdgeInsets.all(30),
+                      decoration: pw.BoxDecoration(
+                        color: PdfColors.white,
+                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(12)),
+                        border: pw.Border.all(color: PdfColors.grey400, width: 2),
                       ),
-                    ],
-                  ),
+                      child: pw.Column(
+                        children: [
+                          pw.Text(
+                            'SCAN TO CHECK IN',
+                            style: pw.TextStyle(
+                              fontSize: 18,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.blue800,
+                            ),
+                          ),
+                          pw.SizedBox(height: 20),
+                          pw.Image(
+                            pw.MemoryImage(qrImageBytes),
+                            width: 250,
+                            height: 250,
+                          ),
+                          pw.SizedBox(height: 20),
+                          pw.Container(
+                            padding: const pw.EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                            decoration: pw.BoxDecoration(
+                              color: PdfColors.blue100,
+                              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(20)),
+                            ),
+                            child: pw.Text(
+                              'Location ID: ${location.id}',
+                              style: pw.TextStyle(
+                                fontSize: 12,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColors.blue800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    pw.Spacer(),
+                    
+                    // Footer
+                    pw.Container(
+                      width: double.infinity,
+                      padding: const pw.EdgeInsets.all(15),
+                      decoration: pw.BoxDecoration(
+                        color: PdfColors.grey100,
+                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                      ),
+                      child: pw.Column(
+                        children: [
+                          pw.Text(
+                            'Security Patrol Monitoring System',
+                            style: pw.TextStyle(
+                              fontSize: 12,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.grey600,
+                            ),
+                          ),
+                          pw.SizedBox(height: 5),
+                          pw.Text(
+                            'Place this QR code at the designated checkpoint',
+                            style: pw.TextStyle(
+                              fontSize: 10,
+                              color: PdfColors.grey500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                pw.SizedBox(height: 20),
-                
-                // Instructions
-                pw.Container(
-                  padding: const pw.EdgeInsets.all(15),
-                  decoration: pw.BoxDecoration(
-                    color: PdfColors.grey100,
-                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-                  ),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        'Instructions:',
-                        style: pw.TextStyle(
-                          fontSize: 14,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                      pw.SizedBox(height: 8),
-                      pw.Bullet(
-                        text: 'Print this QR code and place it at the location',
-                      ),
-                      pw.Bullet(
-                        text: 'Ensure the QR code is clearly visible and accessible',
-                      ),
-                      pw.Bullet(
-                        text: 'Guards can scan this code to submit patrol reports',
-                      ),
-                    ],
-                  ),
-                ),
-                
-                pw.Spacer(),
-                
-                // Footer
-                pw.Text(
-                  'Generated on ${DateTime.now().toString().split('.')[0]}',
-                  style: const pw.TextStyle(
-                    fontSize: 10,
-                    color: PdfColors.grey600,
-                  ),
-                ),
-              ],
+              ),
             );
           },
         ),
@@ -171,7 +215,7 @@ class QRPdfService {
       
       // Save PDF to temporary directory
       final directory = await getTemporaryDirectory();
-      final fileName = 'QR_Code_${location.name.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final fileName = 'Checkpoint_${location.name.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.pdf';
       final file = File('${directory.path}/$fileName');
       
       await file.writeAsBytes(await pdf.save());
@@ -179,8 +223,8 @@ class QRPdfService {
       // Share the PDF file
       await Share.shareXFiles(
         [XFile(file.path)],
-        subject: 'QR Code for ${location.name}',
-        text: 'QR code for location: ${location.name}',
+        subject: 'Security Checkpoint - ${location.name}',
+        text: 'Security patrol checkpoint QR code for: ${location.name}',
       );
       
     } catch (e) {
@@ -188,27 +232,4 @@ class QRPdfService {
     }
   }
   
-  static pw.Widget _buildInfoRow(String label, String value) {
-    return pw.Row(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.SizedBox(
-          width: 80,
-          child: pw.Text(
-            label,
-            style: pw.TextStyle(
-              fontWeight: pw.FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
-        ),
-        pw.Expanded(
-          child: pw.Text(
-            value,
-            style: const pw.TextStyle(fontSize: 12),
-          ),
-        ),
-      ],
-    );
-  }
 }

@@ -6,12 +6,12 @@ import 'package:magzmotron/screens/admin_report_screen.dart';
 import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'screens/login_screen.dart';
+import 'screens/forgot_password_screen.dart';
 import 'screens/guard_home_screen.dart';
 import 'screens/manager_dashboard_screen.dart';
 import 'screens/user_management_screen.dart';
 import 'screens/add_user_screen.dart';
 import 'screens/password_reset_screen.dart';
-import 'screens/forgot_password_screen.dart';
 import 'screens/patrol_history_screen.dart';
 import 'theme/app_theme.dart';
 
@@ -38,6 +38,7 @@ class MyApp extends StatelessWidget {
         initialRoute: '/login',
         routes: {
           '/login': (context) => const LoginScreen(),
+          '/forgot_password': (context) => const ForgotPasswordScreen(),
           '/home': (context) {
             final authProvider = Provider.of<AuthProvider>(context);
             // For demo purposes, default to guard view
@@ -52,7 +53,6 @@ class MyApp extends StatelessWidget {
           '/add_user': (context) => const AddUserScreen(),
           '/add_location': (context) => const AdminAddLocationScreen(),
           '/password_reset': (context) => const PasswordResetScreen(),
-          '/forgot_password': (context) => const ForgotPasswordScreen(),
           '/patrol_history': (context) => const PatrolHistoryScreen(),
           '/all_reports': (context) => const AdminReportScreen(),
         },

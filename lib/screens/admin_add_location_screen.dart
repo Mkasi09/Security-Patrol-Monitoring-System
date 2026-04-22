@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/location_manager.dart';
 import '../services/qr_pdf_service.dart';
+import '../services/id_generator_service.dart';
 import '../models/location.dart';
 import '../widgets/admin_app_bar.dart';
 import '../widgets/admin_drawer.dart';
@@ -25,6 +26,18 @@ class _AdminAddLocationScreenState extends State<AdminAddLocationScreen> {
   bool _isSaving = false;
   String? _errorMessage;
   Location? _lastSavedLocation;
+
+  @override
+  void initState() {
+    super.initState();
+    _generateAutoIds();
+  }
+
+  void _generateAutoIds() {
+    final ids = IDGeneratorService.generateLocationPair();
+    _idController.text = ids['locationId']!;
+    _qrCodeController.text = ids['qrCode']!;
+  }
 
   @override
   void dispose() {
@@ -99,10 +112,9 @@ class _AdminAddLocationScreenState extends State<AdminAddLocationScreen> {
   }
 
   void _clearForm() {
-    _idController.clear();
+    _generateAutoIds(); // Generate new auto IDs
     _nameController.clear();
     _addressController.clear();
-    _qrCodeController.clear();
     _latitudeController.clear();
     _longitudeController.clear();
     _radiusController.text = '100.0';
@@ -214,19 +226,33 @@ class _AdminAddLocationScreenState extends State<AdminAddLocationScreen> {
                   ),
                 ),
 
-              TextFormField(
-                controller: _idController,
-                decoration: const InputDecoration(
-                  labelText: 'Location ID',
-                  hintText: 'e.g., loc_001',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a location ID';
-                  }
-                  return null;
-                },
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _idController,
+                      decoration: const InputDecoration(
+                        labelText: 'Location ID',
+                        hintText: 'Auto-generated',
+                        border: OutlineInputBorder(),
+                        helperText: 'Auto-generated unique ID',
+                      ),
+                      readOnly: true,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Location ID is required';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: _generateAutoIds,
+                    icon: const Icon(Icons.refresh),
+                    tooltip: 'Regenerate IDs',
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
 
@@ -267,14 +293,15 @@ class _AdminAddLocationScreenState extends State<AdminAddLocationScreen> {
                 controller: _qrCodeController,
                 decoration: const InputDecoration(
                   labelText: 'QR Code',
-                  hintText: 'e.g., LOC001',
+                  hintText: 'Auto-generated',
                   border: OutlineInputBorder(),
-                  helperText: 'This is the string that will be in the QR code',
+                  helperText: 'Auto-generated QR code string',
                 ),
+                readOnly: true,
                 textCapitalization: TextCapitalization.characters,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Please enter a QR code';
+                    return 'QR code is required';
                   }
                   return null;
                 },

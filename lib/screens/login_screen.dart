@@ -113,8 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         return null;
                       },
                     ),
-
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 24),
                     Consumer<AuthProvider>(
                       builder: (context, authProvider, child) {
                         if (authProvider.isLoading) {
@@ -137,6 +136,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         );
                       },
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pushNamed(context, '/forgot_password');
+                      },
+                      child: const Text('Forgot Password?'),
                     ),
                     Consumer<AuthProvider>(
                       builder: (context, authProvider, child) {

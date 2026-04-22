@@ -1,5 +1,6 @@
 import '../models/location.dart';
 import 'firestore_service.dart';
+import 'id_generator_service.dart';
 
 class LocationManager {
   final FirestoreService _firestoreService = FirestoreService();
@@ -82,5 +83,29 @@ class LocationManager {
     );
 
     await _firestoreService.saveLocation(location);
+  }
+
+  /// Add a location with auto-generated ID and QR code
+  Future<Location> addLocationWithAutoIds({
+    required String name,
+    required String address,
+    required double latitude,
+    required double longitude,
+    double radius = 100.0,
+  }) async {
+    final ids = IDGeneratorService.generateLocationPair();
+    
+    final location = Location(
+      id: ids['locationId']!,
+      name: name,
+      address: address,
+      qrCode: ids['qrCode']!,
+      latitude: latitude,
+      longitude: longitude,
+      radius: radius,
+    );
+
+    await _firestoreService.saveLocation(location);
+    return location;
   }
 }
