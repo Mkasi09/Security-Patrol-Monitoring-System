@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/location_manager.dart';
+import '../services/qr_pdf_service.dart';
+import '../models/location.dart';
 import '../widgets/admin_app_bar.dart';
 import '../widgets/admin_drawer.dart';
 
@@ -22,6 +24,7 @@ class _AdminAddLocationScreenState extends State<AdminAddLocationScreen> {
 
   bool _isSaving = false;
   String? _errorMessage;
+  Location? _lastSavedLocation;
 
   @override
   void dispose() {
@@ -44,7 +47,9 @@ class _AdminAddLocationScreenState extends State<AdminAddLocationScreen> {
 
       try {
         final manager = LocationManager();
-        await manager.addCustomLocation(
+        
+        // Create location object
+        final location = Location(
           id: _idController.text,
           name: _nameController.text,
           address: _addressController.text,
@@ -53,14 +58,32 @@ class _AdminAddLocationScreenState extends State<AdminAddLocationScreen> {
           longitude: double.parse(_longitudeController.text),
           radius: double.parse(_radiusController.text),
         );
+        
+        await manager.addCustomLocation(
+          id: location.id,
+          name: location.name,
+          address: location.address,
+          qrCode: location.qrCode,
+          latitude: location.latitude,
+          longitude: location.longitude,
+          radius: location.radius,
+        );
 
         if (mounted) {
+          setState(() {
+            _lastSavedLocation = location;
+          });
+          
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Location added successfully'),
               backgroundColor: Colors.green,
             ),
           );
+          
+          // Show download dialog
+          _showDownloadDialog(location);
+          
           _clearForm();
         }
       } catch (e) {
@@ -83,6 +106,83 @@ class _AdminAddLocationScreenState extends State<AdminAddLocationScreen> {
     _latitudeController.clear();
     _longitudeController.clear();
     _radiusController.text = '100.0';
+  }
+
+  void _showDownloadDialog(Location location) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Download QR Code'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Location saved successfully!'),
+              const SizedBox(height: 12),
+              Text('Location: ${location.name}'),
+              Text('QR Code: ${location.qrCode}'),
+              const SizedBox(height: 16),
+              const Text(
+                'Would you like to download a PDF containing the QR code for this location?',
+                style: TextStyle(fontSize: 14),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Maybe Later'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _downloadQRPdf(location);
+              },
+              icon: const Icon(Icons.download),
+              label: const Text('Download PDF'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _downloadQRPdf(Location location) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Generating PDF...'),
+          backgroundColor: Colors.blue,
+        ),
+      );
+
+      await QRPdfService.generateAndDownloadQRPdf(location);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PDF generated and shared successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -263,23 +363,75 @@ class _AdminAddLocationScreenState extends State<AdminAddLocationScreen> {
               ),
               const SizedBox(height: 16),
 
+              // Download section for last saved location
+              if (_lastSavedLocation != null)
+                Card(
+                  color: Colors.green.shade50,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.check_circle, color: Colors.green),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Last Saved Location',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green.shade800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '${_lastSavedLocation!.name}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          'QR Code: ${_lastSavedLocation!.qrCode}',
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _downloadQRPdf(_lastSavedLocation!),
+                            icon: const Icon(Icons.download),
+                            label: const Text('Download QR Code PDF'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              const SizedBox(height: 16),
+
               Card(
                 color: Colors.blue.shade50,
                 child: Padding(
-                  padding: EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         'How to use:',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      SizedBox(height: 8),
-                      Text('1. Fill in the location details'),
-                      Text('2. The QR Code field is the string that will be encoded in your QR code'),
-                      Text('3. Use a QR code generator to create a physical QR code with this string'),
-                      Text('4. Print and place the QR code at the location'),
-                      Text('5. Guards can scan it to submit reports'),
+                      const SizedBox(height: 8),
+                      const Text('1. Fill in the location details'),
+                      const Text('2. The QR Code field is the string that will be encoded in your QR code'),
+                      const Text('3. Save the location and download the QR code PDF'),
+                      const Text('4. Print the QR code and place it at the location'),
+                      const Text('5. Guards can scan it to submit reports'),
                     ],
                   ),
                 ),
