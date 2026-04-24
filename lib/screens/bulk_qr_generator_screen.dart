@@ -109,7 +109,7 @@ class _BulkQRGeneratorScreenState extends State<BulkQRGeneratorScreen> {
 
   Future<pw.Document> _createPDF() async {
     final pdf = pw.Document();
-    final logoData = await rootBundle.load('assets/loggo.png');
+    final logoData = await rootBundle.load('assets/logo.png');
     final logoBytes = logoData.buffer.asUint8List();
 
     for (var i = 0; i < _selectedLocations.length; i += 4) {

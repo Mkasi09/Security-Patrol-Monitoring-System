@@ -5,8 +5,10 @@ import 'dart:io';
 import '../services/location_service.dart';
 import '../services/firestore_service.dart';
 import '../services/email_service.dart';
+import '../services/alert_service.dart';
 import '../providers/auth_provider.dart';
 import '../models/report.dart';
+import '../models/alert.dart';
 import '../widgets/modern_app_bar.dart';
 import 'package:provider/provider.dart';
 
@@ -32,6 +34,7 @@ class _ReportScreenState extends State<ReportScreen> {
   final LocationService _locationService = LocationService();
   final FirestoreService _firestoreService = FirestoreService();
   final EmailService _emailService = EmailService();
+  final AlertService _alertService = AlertService();
 
   String _selectedStatus = 'all_clear';
   File? _selectedImage;
@@ -138,6 +141,9 @@ class _ReportScreenState extends State<ReportScreen> {
 
         // Submit report to Firestore
         await _firestoreService.saveReport(report);
+
+        // Create alert in alert center for managers
+        await _createPatrolReportAlert(report);
 
         // Send email notification to managers
         await _emailService.sendReportNotificationToManager(report);
@@ -371,6 +377,67 @@ class _ReportScreenState extends State<ReportScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _createPatrolReportAlert(Report report) async {
+    try {
+      // Determine alert priority based on report status
+      AlertPriority priority;
+      switch (report.status) {
+        case 'emergency':
+          priority = AlertPriority.critical;
+          break;
+        case 'suspicious':
+          priority = AlertPriority.high;
+          break;
+        case 'all_clear':
+          priority = AlertPriority.low;
+          break;
+        default:
+          priority = AlertPriority.medium;
+      }
+
+      // Create alert title and message
+      String title = 'Patrol Report: ${report.locationName}';
+      String message = '${report.userName} submitted a ${_getStatusText(report.status)} report at ${report.locationName}';
+      if (report.notes.isNotEmpty) {
+        message += '\n\nNotes: ${report.notes}';
+      }
+
+      await _alertService.createAlert(
+        title: title,
+        message: message,
+        type: AlertType.security,
+        priority: priority,
+        locationId: report.locationId,
+        locationName: report.locationName,
+        guardId: report.userId,
+        guardName: report.userName,
+        targetUsers: ['all_managers'], // Target all managers
+        isMassAlert: true,
+        metadata: {
+          'reportId': report.id,
+          'reportStatus': report.status,
+          'timestamp': report.timestamp.toIso8601String(),
+        },
+      );
+    } catch (e) {
+      // Log error but don't fail the report submission
+      print('Failed to create alert: $e');
+    }
+  }
+
+  String _getStatusText(String status) {
+    switch (status) {
+      case 'all_clear':
+        return 'All Clear';
+      case 'suspicious':
+        return 'Suspicious Activity';
+      case 'emergency':
+        return 'Emergency';
+      default:
+        return 'Unknown';
+    }
   }
 
   Color _getStatusColor(String status) {

@@ -26,7 +26,7 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
   late PageController _pageController;
   
   // Data state
-  List<Report> _recentReports = [];
+  List<Report> _recentAlerts = [];
   Map<String, int> _statistics = {
     'today': 0,
     'week': 0,
@@ -60,8 +60,8 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
       final userId = authProvider.currentUser?.id;
       
       if (userId != null) {
-        // Fetch recent reports
-        final reports = await _firestoreService.getReportsByUserId(userId);
+        // Fetch recent alerts
+        final alerts = await _firestoreService.getReportsByUserId(userId);
         
         // Calculate statistics
         final now = DateTime.now();
@@ -71,21 +71,21 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
         int todayCount = 0;
         int weekCount = 0;
         
-        for (final report in reports) {
-          if (report.timestamp.isAfter(today)) {
+        for (final alert in alerts) {
+          if (alert.timestamp.isAfter(today)) {
             todayCount++;
           }
-          if (report.timestamp.isAfter(weekStart)) {
+          if (alert.timestamp.isAfter(weekStart)) {
             weekCount++;
           }
         }
         
         setState(() {
-          _recentReports = reports.take(5).toList(); // Show last 5 reports
+          _recentAlerts = alerts.take(5).toList(); // Show last 5 alerts
           _statistics = {
             'today': todayCount,
             'week': weekCount,
-            'total': reports.length,
+            'total': alerts.length,
           };
           _isLoading = false;
         });
@@ -294,7 +294,7 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
       child: Row(
         children: [
           Image.asset(
-                    'assets/loggo.png',
+                    'assets/logo1.png',
                     height: 32,
                     color: Colors.white,
                   ),
@@ -344,7 +344,7 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
         const SizedBox(width: 12),
         Expanded(child: _buildStatCard("This Week", _statistics['week'].toString())),
         const SizedBox(width: 12),
-        Expanded(child: _buildStatCard("Reports", _statistics['total'].toString())),
+        Expanded(child: _buildStatCard("Alerts", _statistics['total'].toString())),
       ],
     );
   }
@@ -491,7 +491,7 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
       );
     }
 
-    if (_recentReports.isEmpty) {
+    if (_recentAlerts.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -516,7 +516,7 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ..._recentReports.map((report) => _buildActivityItem(report)),
+          ..._recentAlerts.map((alert) => _buildActivityItem(alert)),
           const SizedBox(height: 12),
           Center(
             child: TextButton(

@@ -63,11 +63,11 @@ class AdminDrawer extends StatelessWidget {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.report),
-                  title: const Text('Reports'),
+                  leading: const Icon(Icons.notifications_active),
+                  title: const Text('Alerts'),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pushReplacementNamed(context, '/admin_reports');
+                    Navigator.pushReplacementNamed(context, '/alert_center');
                   },
                 ),
                 ListTile(

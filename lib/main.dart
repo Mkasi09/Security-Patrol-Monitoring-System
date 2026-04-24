@@ -6,7 +6,6 @@ import 'package:magzmotron/screens/active_guards_screen.dart';
 import 'package:magzmotron/screens/enhanced_report_screen.dart';
 import 'package:magzmotron/screens/alert_center_screen.dart';
 import 'package:magzmotron/screens/admin_add_location_screen.dart';
-import 'package:magzmotron/screens/admin_report_screen.dart';
 import 'package:magzmotron/screens/bulk_qr_generator_screen.dart';
 import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
@@ -52,9 +51,9 @@ class MyApp extends StatelessWidget {
           '/add_location': (context) => const AdminAddLocationScreen(),
           '/password_reset': (context) => const PasswordResetScreen(),
           '/patrol_history': (context) => const PatrolHistoryScreen(),
-          '/alert_center': (context) => const AlertCenterScreen(),
+          '/alert_center': (context) => const AdminAlertScreen(),
           '/enhanced_reports': (context) => const EnhancedReportScreen(),
-          '/all_reports': (context) => const AdminReportScreen(),
+          '/all_reports': (context) => const AdminAlertScreen(),
           '/bulk_qr_generator': (context) => const BulkQRGeneratorScreen(),
         },
       ),

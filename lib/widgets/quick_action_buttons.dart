@@ -31,7 +31,7 @@ class QuickActionButtons extends StatelessWidget {
               AlertCenterButtonWithBadge(
                 onTap: () => _handleAlertCenter(context),
                 label: 'Alert Center',
-                color: AppTheme.primaryColor,
+                color: AppTheme.infoColor,
               ),
               _QuickActionButton(
                 icon: Icons.add_location,
@@ -206,7 +206,7 @@ class CompactQuickActions extends StatelessWidget {
           const SizedBox(width: 12),
           _CompactQuickAction(
             icon: Icons.assessment,
-            label: 'Reports',
+            label: 'Alerts',
             color: AppTheme.successColor,
             onTap: () => Navigator.pushNamed(context, '/enhanced_reports'),
           ),

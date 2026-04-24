@@ -1,236 +1,361 @@
 import 'package:flutter/material.dart';
-import '../models/alert.dart';
-import '../services/alert_service.dart';
-import '../theme/app_theme.dart';
+import 'dart:math';
+import '../models/report.dart';
+import '../services/firestore_service.dart';
 import '../widgets/admin_app_bar.dart';
 import '../widgets/admin_drawer.dart';
+import 'report_detail_screen.dart';
 
-class AlertCenterScreen extends StatefulWidget {
-  const AlertCenterScreen({super.key});
+class AdminAlertScreen extends StatefulWidget {
+  const AdminAlertScreen({super.key});
 
   @override
-  State<AlertCenterScreen> createState() => _AlertCenterScreenState();
+  State<AdminAlertScreen> createState() => _AdminAlertScreenState();
 }
 
-class _AlertCenterScreenState extends State<AlertCenterScreen> {
-  final AlertService _alertService = AlertService();
-  bool _isLoading = false;
-  List<Alert> _newAlerts = [];
-  int _unreadCount = 0;
+class _AdminAlertScreenState extends State<AdminAlertScreen> {
+  final FirestoreService _firestoreService = FirestoreService();
+
+  // Filters
+  String _selectedStatusFilter = 'all';
+  String _selectedLocationFilter = 'all';
+  String _selectedGuardFilter = 'all';
+  DateTimeRange? _dateRange;
+  String _searchQuery = '';
+
+  // Data
+  List<Report> _allAlerts = [];
+  List<Report> _filteredAlerts = [];
+  bool _isLoading = true;
+
 
   @override
   void initState() {
     super.initState();
-    _loadNewAlerts();
+    _loadData();
   }
 
-  Future<void> _loadNewAlerts() async {
-    setState(() => _isLoading = true);
-    try {
-      // Get only active alerts from guards (status: active)
-      final alerts = await _alertService.getAlerts(
-        status: AlertStatus.active,
-        limit: 100,
-      );
-      
-      // Filter to show only alerts reported by guards (not system alerts)
-      final guardAlerts = alerts.where((alert) => 
-        alert.guardId != null && alert.guardId!.isNotEmpty
-      ).toList();
 
-      setState(() {
-        _newAlerts = guardAlerts;
-        _unreadCount = guardAlerts.length;
-        _isLoading = false;
-      });
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      // Load real data from Firestore
+      _allAlerts = await _firestoreService.getAllReports();
+
+      _applyFilters();
+
+
+      setState(() => _isLoading = false);
     } catch (e) {
       setState(() => _isLoading = false);
-      _showErrorSnackBar('Failed to load alerts: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading data: $e')),
+      );
     }
   }
 
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: AppTheme.errorColor),
-    );
+  void _applyFilters() {
+    _filteredAlerts = _allAlerts.where((alert) {
+      // Status filter
+      if (_selectedStatusFilter != 'all' && alert.status != _selectedStatusFilter) {
+        return false;
+      }
+
+      // Location filter
+      if (_selectedLocationFilter != 'all' && alert.locationId != _selectedLocationFilter) {
+        return false;
+      }
+
+      // Guard filter
+      if (_selectedGuardFilter != 'all' && alert.userId != _selectedGuardFilter) {
+        return false;
+      }
+
+      // Date range filter
+      if (_dateRange != null) {
+        if (alert.timestamp.isBefore(_dateRange!.start) ||
+            alert.timestamp.isAfter(_dateRange!.end)) {
+          return false;
+        }
+      }
+
+      // Search query
+      if (_searchQuery.isNotEmpty) {
+        final query = _searchQuery.toLowerCase();
+        if (!alert.userName.toLowerCase().contains(query) &&
+            !alert.locationName.toLowerCase().contains(query) &&
+            !alert.notes.toLowerCase().contains(query)) {
+          return false;
+        }
+      }
+
+      return true;
+    }).toList();
   }
 
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.green),
-    );
-  }
 
-  Future<void> _markAsRead(String alertId) async {
-    try {
-      await _alertService.updateAlertStatus(alertId, AlertStatus.acknowledged);
-      _showSuccessSnackBar('Alert marked as read');
-      _loadNewAlerts(); // Refresh the list
-    } catch (e) {
-      _showErrorSnackBar('Failed to mark as read: $e');
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: const AdminDrawer(),
       appBar: AdminAppBar(
-        title: 'New Guard Alerts',
+        title: 'Alert Center',
         actions: [
-          // Show red badge with count
-          if (_unreadCount > 0)
-            Container(
-              margin: const EdgeInsets.only(right: 16),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.red,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                _unreadCount.toString(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ),
+          IconButton(
+            icon: const Icon(Icons.download),
+            onPressed: _exportAlerts,
+            tooltip: 'Export Alerts',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadNewAlerts,
+            onPressed: _loadData,
             tooltip: 'Refresh',
           ),
         ],
       ),
-      drawer: const AdminDrawer(),
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _newAlerts.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _newAlerts.length,
-                    itemBuilder: (context, index) {
-                      final alert = _newAlerts[index];
-                      return _buildAlertCard(alert);
-                    },
-                  ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      body: Column(
         children: [
-          Icon(
-            Icons.notifications_off_outlined,
-            size: 80,
-            color: AppTheme.textSecondary,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No new alerts',
-            style: AppTheme.heading3.copyWith(color: AppTheme.textSecondary),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'All reports from security guards have been reviewed',
-            style: AppTheme.body2.copyWith(color: AppTheme.textSecondary),
-            textAlign: TextAlign.center,
+          _buildFilterSection(),
+          Expanded(
+            child: _buildAlertsTab(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildAlertCard(Alert alert) {
+  Widget _buildFilterSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: Column(
+        children: [
+          // Search bar
+          TextField(
+            decoration: InputDecoration(
+              hintText: 'Search alerts...',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value;
+              });
+              _applyFilters();
+
+            },
+          ),
+          const SizedBox(height: 12),
+
+          // Filter chips and date range
+          Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildFilterChip('All', 'all', _selectedStatusFilter == 'all', (value) {
+                        setState(() {
+                          _selectedStatusFilter = value;
+                        });
+                        _applyFilters();
+                      }),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('All Clear', 'all_clear', _selectedStatusFilter == 'all_clear', (value) {
+                        setState(() {
+                          _selectedStatusFilter = value;
+                        });
+                        _applyFilters();
+                      }),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Suspicious', 'suspicious', _selectedStatusFilter == 'suspicious', (value) {
+                        setState(() {
+                          _selectedStatusFilter = value;
+                        });
+                        _applyFilters();
+                      }),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Emergency', 'emergency', _selectedStatusFilter == 'emergency', (value) {
+                        setState(() {
+                          _selectedStatusFilter = value;
+                        });
+                        _applyFilters();
+                      }),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              IconButton(
+                icon: Icon(
+                  _dateRange != null ? Icons.date_range : Icons.calendar_today,
+                  color: _dateRange != null ? Colors.blue : null,
+                ),
+                onPressed: _selectDateRange,
+                tooltip: _dateRange != null
+                    ? '${_dateRange!.start.day}/${_dateRange!.start.month}/${_dateRange!.start.year} - ${_dateRange!.end.day}/${_dateRange!.end.month}/${_dateRange!.end.year}'
+                    : 'Select date range',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, String value, bool isSelected, Function(String) onTap) {
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) => onTap(value),
+      backgroundColor: Colors.white,
+      selectedColor: Colors.blue.shade100,
+      checkmarkColor: Colors.blue,
+    );
+  }
+
+
+  Widget _buildAlertsTab() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return Column(
+      children: [
+
+
+        // Alerts list
+        Expanded(
+          child: _filteredAlerts.isEmpty
+              ? const Center(
+            child: Text('No alerts found matching your criteria'),
+          )
+              : ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _filteredAlerts.length,
+            itemBuilder: (context, index) {
+              final alert = _filteredAlerts[index];
+              return _buildAlertCard(alert);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryCard(String title, int count, Color color) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Text(
+              count.toString(),
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAlertCard(Report alert) {
+    final statusColor = _getStatusColor(alert.status);
+    final statusText = _getStatusText(alert.status);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: () => _showAlertDetails(alert),
-        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ReportDetailScreen(report: alert),
+            ),
+          );
+        },
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with priority indicator
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: _getPriorityColor(alert.priority).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      alert.priority.name.toUpperCase(),
+                      statusText,
                       style: TextStyle(
-                        color: _getPriorityColor(alert.priority),
+                        color: statusColor,
                         fontWeight: FontWeight.bold,
-                        fontSize: 10,
+                        fontSize: 12,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _formatTimeAgo(alert.createdAt),
-                    style: AppTheme.caption.copyWith(color: AppTheme.textSecondary),
-                  ),
                   const Spacer(),
-                  // Red dot for unopened
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
+                  Text(
+                    _formatDateTime(alert.timestamp),
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              // Alert Title
-              Text(
-                alert.title,
-                style: AppTheme.heading3.copyWith(fontWeight: FontWeight.bold),
+              Row(
+                children: [
+                  const Icon(Icons.person, size: 16, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    alert.userName,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
               const SizedBox(height: 4),
-              // Guard Name
-              if (alert.guardName != null)
-                Text(
-                  'From: ${alert.guardName}',
-                  style: AppTheme.body2.copyWith(
-                    color: AppTheme.primaryColor,
-                    fontWeight: FontWeight.w600,
+              Row(
+                children: [
+                  const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    alert.locationName,
+                    style: TextStyle(color: Colors.grey.shade700),
                   ),
-                ),
+                ],
+              ),
               const SizedBox(height: 8),
-              // Message preview
               Text(
-                alert.message,
-                style: AppTheme.body2,
+                alert.notes,
+                style: TextStyle(color: Colors.grey.shade600),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 12),
-              // Mark as read button
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: () => _markAsRead(alert.id),
-                  icon: const Icon(Icons.check_circle_outline, size: 18),
-                  label: const Text('Mark as Read'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppTheme.successColor,
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -238,109 +363,79 @@ class _AlertCenterScreenState extends State<AlertCenterScreen> {
     );
   }
 
-  void _showAlertDetails(Alert alert) {
-    showDialog(
+
+
+  Future<void> _selectDateRange() async {
+    final DateTimeRange? picked = await showDateRangePicker(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                color: _getPriorityColor(alert.priority),
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(child: Text(alert.title)),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (alert.guardName != null)
-                _buildDetailRow('Guard:', alert.guardName!),
-              if (alert.locationName != null)
-                _buildDetailRow('Location:', alert.locationName!),
-              _buildDetailRow('Priority:', alert.priority.name),
-              _buildDetailRow('Time:', _formatTimeAgo(alert.createdAt)),
-              const SizedBox(height: 12),
-              const Text(
-                'Message:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 4),
-              Text(alert.message),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              _markAsRead(alert.id);
-            },
-            icon: const Icon(Icons.check_circle),
-            label: const Text('Mark as Read'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.successColor,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now(),
+      initialDateRange: _dateRange,
     );
-  }
 
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(width: 8),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
-  }
-
-  Color _getPriorityColor(AlertPriority priority) {
-    switch (priority) {
-      case AlertPriority.critical:
-        return Colors.red;
-      case AlertPriority.high:
-        return Colors.orange;
-      case AlertPriority.medium:
-        return Colors.blue;
-      case AlertPriority.low:
-        return Colors.green;
+    if (picked != null) {
+      setState(() {
+        _dateRange = picked;
+      });
+      _applyFilters();
     }
   }
 
-  String _formatTimeAgo(DateTime dateTime) {
+  Future<void> _exportAlerts() async {
+    // Mock export functionality
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Exporting alerts...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    await Future.delayed(const Duration(seconds: 2));
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Alerts exported successfully!'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'all_clear':
+        return Colors.green;
+      case 'suspicious':
+        return Colors.orange;
+      case 'emergency':
+        return Colors.red;
+      default:
+        return Colors.blue;
+    }
+  }
+
+  String _getStatusText(String status) {
+    switch (status) {
+      case 'all_clear':
+        return 'All Clear';
+      case 'suspicious':
+        return 'Suspicious';
+      case 'emergency':
+        return 'Emergency';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  String _formatDateTime(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
 
-    if (difference.inDays > 0) {
-      return '${difference.inDays}d ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m ago';
+    if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} min ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} hours ago';
     } else {
-      return 'Just now';
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
     }
   }
 }

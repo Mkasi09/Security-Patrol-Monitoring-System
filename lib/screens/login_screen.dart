@@ -55,9 +55,9 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 // Full width logo - edge to edge
                 Image.asset(
-                  'assets/loggo.png',
+                  'assets/logo.png',
                   width: double.infinity,
-                  fit: BoxFit.cover,
+                  height: 140,
                 ),
 
                 const SizedBox(height: 48),

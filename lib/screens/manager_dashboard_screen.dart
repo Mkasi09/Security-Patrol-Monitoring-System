@@ -44,13 +44,13 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 // Quick Actions
                 const QuickActionButtons(),
 
-                // Recent Reports Section
+                // Recent Alerts Section
                 Container(
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
                       const Text(
-                        'Recent Reports',
+                        'Recent Alerts',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -59,7 +59,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                       const Spacer(),
                       TextButton(
                         onPressed: () {
-                          Navigator.pushNamed(context, '/all_reports');
+                          Navigator.pushNamed(context, '/alert_center');
                         },
                         child: const Text('View All'),
                       ),
@@ -67,10 +67,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                   ),
                 ),
 
-                // Reports list
+                // Alerts list
                 SizedBox(
                   height: 400,
-                  child: _buildReportsList(),
+                  child: _buildAlertsList(),
                 ),
 
                 // Bottom padding to avoid system navigation
@@ -84,7 +84,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   }
 
 
-  Widget _buildReportsList() {
+  Widget _buildAlertsList() {
     return StreamBuilder<List<Report>>(
       stream: _firestoreService.streamReports(),
       builder: (context, snapshot) {
@@ -97,20 +97,20 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         }
 
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('No reports found'));
+          return const Center(child: Text('No alerts found'));
         }
 
-        List<Report> reports = snapshot.data!;
+        List<Report> alerts = snapshot.data!;
 
         return Column(
           children: [
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: reports.length > 10 ? 10 : reports.length,
+                itemCount: alerts.length > 10 ? 10 : alerts.length,
                 itemBuilder: (context, index) {
-                  final report = reports[index];
-                  return _buildReportCard(report);
+                  final alert = alerts[index];
+                  return _buildAlertCard(alert);
                 },
               ),
             ),
@@ -118,11 +118,11 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               padding: const EdgeInsets.all(16),
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.pushNamed(context, '/all_reports');
+                  Navigator.pushNamed(context, '/alert_center');
                 },
-                child: reports.length > 10 
-                    ? Text('View More (${reports.length - 10} more reports)')
-                    : const Text('View All Reports'),
+                child: alerts.length > 10 
+                    ? Text('View More (${alerts.length - 10} more alerts)')
+                    : const Text('View All Alerts'),
               ),
             ),
           ],
@@ -132,9 +132,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   }
 
   
-  Widget _buildReportCard(Report report) {
-    final statusColor = _getStatusColor(report.status);
-    final statusText = _getStatusText(report.status);
+  Widget _buildAlertCard(Report alert) {
+    final statusColor = _getStatusColor(alert.status);
+    final statusText = _getStatusText(alert.status);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -143,7 +143,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => ReportDetailScreen(report: report),
+              builder: (context) => ReportDetailScreen(report: alert),
             ),
           );
         },
@@ -174,7 +174,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                   ),
                   const Spacer(),
                   Text(
-                    _formatDateTime(report.timestamp),
+                    _formatDateTime(alert.timestamp),
                     style: TextStyle(
                       color: Colors.grey.shade600,
                       fontSize: 12,
@@ -188,7 +188,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                   const Icon(Icons.person, size: 16, color: Colors.grey),
                   const SizedBox(width: 4),
                   Text(
-                    report.userName,
+                    alert.userName,
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -199,14 +199,14 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                   const Icon(Icons.location_on, size: 16, color: Colors.grey),
                   const SizedBox(width: 4),
                   Text(
-                    report.locationName,
+                    alert.locationName,
                     style: TextStyle(color: Colors.grey.shade700),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
-                report.notes,
+                alert.notes,
                 style: TextStyle(color: Colors.grey.shade600),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,

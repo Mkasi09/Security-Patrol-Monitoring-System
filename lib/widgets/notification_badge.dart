@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/alert_service.dart';
+import '../services/notification_refresh_service.dart';
 import '../models/alert.dart';
 
 class NotificationBadge extends StatefulWidget {
@@ -25,11 +26,26 @@ class NotificationBadge extends StatefulWidget {
 
 class _NotificationBadgeState extends State<NotificationBadge> {
   final AlertService _alertService = AlertService();
+  final NotificationRefreshService _refreshService = NotificationRefreshService();
   int _newAlertsCount = 0;
 
   @override
   void initState() {
     super.initState();
+    _loadNewAlertsCount();
+    // Listen for refresh notifications
+    _refreshService.addListener(refreshBadge);
+  }
+
+  @override
+  void dispose() {
+    // Remove listener when widget is disposed
+    _refreshService.removeListener(refreshBadge);
+    super.dispose();
+  }
+
+  // Public method to refresh the badge count
+  void refreshBadge() {
     _loadNewAlertsCount();
   }
 
@@ -172,30 +188,17 @@ class _QuickActionButton extends StatelessWidget {
           child: SizedBox.expand(
             child: Container(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    color.withValues(alpha: 0.9),
-                    color.withValues(alpha: 0.7),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: color.withValues(alpha: 0.3),
-                  width: 1.5,
+                  color: color.withValues(alpha: 0.2),
+                  width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: color.withValues(alpha: 0.15),
-                    blurRadius: 15,
-                    offset: const Offset(0, 6),
-                    spreadRadius: 2,
-                  ),
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
@@ -304,12 +307,19 @@ class _CompactQuickAction extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: color.withValues(alpha: 0.2),
               width: 1,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
