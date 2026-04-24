@@ -191,28 +191,31 @@ class ModernNavigationDrawer extends StatelessWidget {
   Widget _logout(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context, listen: false);
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: GestureDetector(
-        onTap: () async {
-          await auth.signOut();
-          if (context.mounted) {
-            Navigator.pushReplacementNamed(context, '/login');
-          }
-        },
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppTheme.errorColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.logout, color: AppTheme.errorColor),
-              const SizedBox(width: 10),
-              const Text("Logout",
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-            ],
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: GestureDetector(
+          onTap: () async {
+            await auth.signOut();
+            if (context.mounted) {
+              Navigator.pushReplacementNamed(context, '/login');
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppTheme.errorColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.logout, color: AppTheme.errorColor),
+                const SizedBox(width: 10),
+                const Text("Logout",
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+              ],
+            ),
           ),
         ),
       ),

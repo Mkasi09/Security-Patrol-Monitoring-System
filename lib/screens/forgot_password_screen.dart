@@ -61,7 +61,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   children: [
                     if (!_emailSent) ...[
                       Image.asset(
-                        'assets/logo.png',
+                        'assets/loggo.png',
                         height: 120,
                       ),
                       const SizedBox(height: 24),

@@ -45,7 +45,6 @@ class _ModernBottomNavigationState extends State<ModernBottomNavigation>
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 85,
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -57,8 +56,9 @@ class _ModernBottomNavigationState extends State<ModernBottomNavigation>
         ],
       ),
       child: SafeArea(
+        top: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [

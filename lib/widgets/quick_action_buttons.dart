@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'notification_badge.dart';
 
 class QuickActionButtons extends StatelessWidget {
   const QuickActionButtons({super.key});
@@ -25,19 +26,18 @@ class QuickActionButtons extends StatelessWidget {
             crossAxisCount: 2,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: 1.2,
+            childAspectRatio: 1.0,
             children: [
-              _QuickActionButton(
-                icon: Icons.person_add,
-                label: 'Add Guard',
+              AlertCenterButtonWithBadge(
+                onTap: () => _handleAlertCenter(context),
+                label: 'Alert Center',
                 color: AppTheme.primaryColor,
-                onTap: () => _handleAddGuard(context),
               ),
               _QuickActionButton(
                 icon: Icons.add_location,
-                label: 'Add Location',
+                label: 'Locations',
                 color: AppTheme.infoColor,
-                onTap: () => _handleAddLocation(context),
+                onTap: () => _handleLocations(context),
               ),
               _QuickActionButton(
                 icon: Icons.manage_accounts,
@@ -51,7 +51,6 @@ class QuickActionButtons extends StatelessWidget {
                 color: AppTheme.successColor,
                 onTap: () => _handleGenerateReport(context),
               ),
-
             ],
           ),
         ],
@@ -59,12 +58,12 @@ class QuickActionButtons extends StatelessWidget {
     );
   }
 
-  void _handleAddGuard(BuildContext context) {
-    Navigator.pushNamed(context, '/add_user');
+  void _handleAlertCenter(BuildContext context) {
+    Navigator.pushNamed(context, '/alert_center');
   }
 
-  void _handleAddLocation(BuildContext context) {
-    Navigator.pushNamed(context, '/add_location');
+  void _handleLocations(BuildContext context) {
+    Navigator.pushNamed(context, '/locations_list');
   }
 
   void _handleUserManagement(BuildContext context) {
@@ -72,7 +71,7 @@ class QuickActionButtons extends StatelessWidget {
   }
 
   void _handleGenerateReport(BuildContext context) {
-    _showComingSoonDialog(context, 'Generate Report');
+    Navigator.pushNamed(context, '/enhanced_reports');
   }
 
   void _handleQRScanner(BuildContext context) {
@@ -185,18 +184,17 @@ class CompactQuickActions extends StatelessWidget {
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
-          _CompactQuickAction(
-            icon: Icons.person_add,
-            label: 'Add Guard',
+          CompactAlertCenterButtonWithBadge(
+            onTap: () => Navigator.pushNamed(context, '/alert_center'),
+            label: 'Alert Center',
             color: AppTheme.primaryColor,
-            onTap: () => Navigator.pushNamed(context, '/add_user'),
           ),
           const SizedBox(width: 12),
           _CompactQuickAction(
             icon: Icons.add_location,
-            label: 'Add Location',
+            label: 'Locations',
             color: AppTheme.infoColor,
-            onTap: () => Navigator.pushNamed(context, '/add_location'),
+            onTap: () => Navigator.pushNamed(context, '/locations_list'),
           ),
           const SizedBox(width: 12),
           _CompactQuickAction(
@@ -210,7 +208,7 @@ class CompactQuickActions extends StatelessWidget {
             icon: Icons.assessment,
             label: 'Reports',
             color: AppTheme.successColor,
-            onTap: () => _showComingSoonDialog(context, 'Generate Report'),
+            onTap: () => Navigator.pushNamed(context, '/enhanced_reports'),
           ),
           const SizedBox(width: 12),
         ],

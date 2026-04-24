@@ -235,43 +235,44 @@ class _PatrolHistoryScreenState extends State<PatrolHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadReports,
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                )
-              : _reports.isEmpty
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.history, size: 64, color: Colors.grey),
-                          SizedBox(height: 16),
-                          Text('No patrol reports found', style: TextStyle(fontSize: 18)),
-                          SizedBox(height: 8),
-                          Text('Start scanning locations to build your history', style: TextStyle(color: Colors.grey)),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _reports.length,
-                      itemBuilder: (context, index) {
-                        final report = _reports[index];
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          child: ListTile(
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _errorMessage != null
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _loadReports,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  )
+                : _reports.isEmpty
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.history, size: 64, color: Colors.grey),
+                            SizedBox(height: 16),
+                            Text('No patrol reports found', style: TextStyle(fontSize: 18)),
+                            SizedBox(height: 8),
+                            Text('Start scanning locations to build your history', style: TextStyle(color: Colors.grey)),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _reports.length,
+                        itemBuilder: (context, index) {
+                          final report = _reports[index];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: ListTile(
                             leading: CircleAvatar(
                               backgroundColor: _getStatusColor(report.status).withOpacity(0.2),
                               child: Icon(
@@ -313,6 +314,7 @@ class _PatrolHistoryScreenState extends State<PatrolHistoryScreen> {
                         );
                       },
                     ),
+      ),
     );
   }
 

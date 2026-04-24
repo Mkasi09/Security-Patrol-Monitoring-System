@@ -98,17 +98,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         return Scaffold(
           backgroundColor: AppTheme.backgroundColor,
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildProfileHeader(user),
-                const SizedBox(height: 32),
-                _buildProfileForm(user),
-                const SizedBox(height: 32),
-                _buildAccountActions(),
-              ],
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildProfileHeader(user),
+                  const SizedBox(height: 32),
+                  _buildProfileForm(user),
+                  const SizedBox(height: 32),
+                  _buildAccountActions(),
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
           ),
         );

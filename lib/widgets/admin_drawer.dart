@@ -72,10 +72,10 @@ class AdminDrawer extends StatelessWidget {
                 ),
                 ListTile(
                   leading: const Icon(Icons.location_on),
-                  title: const Text('Add Location'),
+                  title: const Text('Locations'),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pushReplacementNamed(context, '/admin_add_location');
+                    Navigator.pushReplacementNamed(context, '/locations_list');
                   },
                 ),
                 ListTile(
@@ -110,16 +110,19 @@ class AdminDrawer extends StatelessWidget {
             ),
           ),
           
-          // Logout button at bottom
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: ListTile(
-              leading: const Icon(Icons.logout, color: AppTheme.errorColor),
-              title: const Text(
-                'Logout',
-                style: TextStyle(color: AppTheme.errorColor),
+          // Logout button at bottom with safe area padding
+          SafeArea(
+            top: false,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              child: ListTile(
+                leading: const Icon(Icons.logout, color: AppTheme.errorColor),
+                title: const Text(
+                  'Logout',
+                  style: TextStyle(color: AppTheme.errorColor),
+                ),
+                onTap: () => _showLogoutDialog(context),
               ),
-              onTap: () => _showLogoutDialog(context),
             ),
           ),
         ],

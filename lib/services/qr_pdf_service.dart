@@ -15,7 +15,7 @@ class QRPdfService {
       final pdf = pw.Document();
       
       // Load logo image
-      final logoData = await rootBundle.load('assets/logo.png');
+      final logoData = await rootBundle.load('assets/loggo.png');
       final logoBytes = logoData.buffer.asUint8List();
       
       // Generate QR code image data

@@ -173,74 +173,76 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
         currentPage: 'home',
         userRole: 'guard',
       ),
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: (index) {
-          setState(() => _currentIndex = index);
-        },
-        children: [
-          /// 🏠 HOME TAB
-          RefreshIndicator(
-            onRefresh: _loadHomeData,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+      body: SafeArea(
+        child: PageView(
+          controller: _pageController,
+          onPageChanged: (index) {
+            setState(() => _currentIndex = index);
+          },
+          children: [
+            /// 🏠 HOME TAB
+            RefreshIndicator(
+              onRefresh: _loadHomeData,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildWelcomeCard(),
+                    const SizedBox(height: 24),
+
+                    _buildStatsSection(),
+                    const SizedBox(height: 24),
+
+                    Text('Quick Actions', style: AppTheme.heading3),
+                    const SizedBox(height: 16),
+
+                    _buildActionCardsGrid(),
+                    const SizedBox(height: 24),
+
+                    Text('Recent Activity', style: AppTheme.heading3),
+                    const SizedBox(height: 16),
+
+                    _buildRecentActivitySection(),
+                  ],
+                ),
+              ),
+            ),
+
+            /// 📷 SCAN TAB
+            Center(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildWelcomeCard(),
-                  const SizedBox(height: 24),
-
-                  _buildStatsSection(),
-                  const SizedBox(height: 24),
-
-                  Text('Quick Actions', style: AppTheme.heading3),
+                  Icon(
+                    Icons.qr_code_scanner_rounded,
+                    size: 80,
+                    color: AppTheme.primaryColor,
+                  ),
                   const SizedBox(height: 16),
-
-                  _buildActionCardsGrid(),
-                  const SizedBox(height: 24),
-
-                  Text('Recent Activity', style: AppTheme.heading3),
-                  const SizedBox(height: 16),
-
-                  _buildRecentActivitySection(),
+                  Text('QR Scanner', style: AppTheme.heading3),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Scan QR code at the site to submit a report',
+                    style: AppTheme.body2,
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton.icon(
+                    onPressed: _startScanFlow,
+                    icon: const Icon(Icons.qr_code_scanner_rounded),
+                    label: const Text('Start Scanning'),
+                  ),
                 ],
               ),
             ),
-          ),
 
-          /// 📷 SCAN TAB
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.qr_code_scanner_rounded,
-                  size: 80,
-                  color: AppTheme.primaryColor,
-                ),
-                const SizedBox(height: 16),
-                Text('QR Scanner', style: AppTheme.heading3),
-                const SizedBox(height: 8),
-                Text(
-                  'Scan QR code at the site to submit a report',
-                  style: AppTheme.body2,
-                ),
-                const SizedBox(height: 32),
-                ElevatedButton.icon(
-                  onPressed: _startScanFlow,
-                  icon: const Icon(Icons.qr_code_scanner_rounded),
-                  label: const Text('Start Scanning'),
-                ),
-              ],
-            ),
-          ),
+            /// 📜 HISTORY TAB
+            const PatrolHistoryScreen(),
 
-          /// 📜 HISTORY TAB
-          const PatrolHistoryScreen(),
-
-          /// 👤 PROFILE TAB
-          const ProfileScreen(),
-        ],
+            /// 👤 PROFILE TAB
+            const ProfileScreen(),
+          ],
+        ),
       ),
       bottomNavigationBar: ModernBottomNavigation(
         currentIndex: _currentIndex,
@@ -292,7 +294,7 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
       child: Row(
         children: [
           Image.asset(
-                    'assets/logo2.png',
+                    'assets/loggo.png',
                     height: 32,
                     color: Colors.white,
                   ),

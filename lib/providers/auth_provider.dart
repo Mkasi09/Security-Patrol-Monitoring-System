@@ -21,19 +21,33 @@ class AuthProvider with ChangeNotifier {
   }
 
   void _initAuth() {
-    _authService.authStateChanges.listen((user) {
+    _authService.authStateChanges.listen((user) async {
       if (user != null) {
+        // First set a temporary user with basic info
         _currentUser = User(
           id: user.uid,
           name: user.displayName ?? 'User',
           email: user.email ?? '',
-          role: 'guard', // Default role, should be fetched from Firestore
+          role: 'guard', // Default role, will be updated from Firestore
           createdAt: DateTime.now(),
         );
+        notifyListeners();
+        
+        // Then fetch complete user data from Firestore
+        try {
+          final userData = await _firestoreService.getUserById(user.uid);
+          if (userData != null) {
+            _currentUser = userData;
+            notifyListeners();
+          }
+        } catch (e) {
+          // If Firestore fetch fails, keep the default user
+          debugPrint('Failed to fetch user data from Firestore: $e');
+        }
       } else {
         _currentUser = null;
+        notifyListeners();
       }
-      notifyListeners();
     });
   }
 

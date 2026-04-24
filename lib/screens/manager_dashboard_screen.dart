@@ -37,43 +37,48 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             ),
           ],
         ),
-        body: SingleChildScrollView(
-      child: Column(
-      children: [
-      // Quick Actions
-      const QuickActionButtons(),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                // Quick Actions
+                const QuickActionButtons(),
 
-      // Recent Reports Section
-      Container(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            const Text(
-              'Recent Reports',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+                // Recent Reports Section
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Recent Reports',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/all_reports');
+                        },
+                        child: const Text('View All'),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Reports list
+                SizedBox(
+                  height: 400,
+                  child: _buildReportsList(),
+                ),
+
+                // Bottom padding to avoid system navigation
+                const SizedBox(height: 16),
+              ],
             ),
-            const Spacer(),
-            TextButton(
-              onPressed: () {
-                Navigator.pushNamed(context, '/all_reports');
-              },
-              child: const Text('View All'),
-            ),
-          ],
+          ),
         ),
-      ),
-
-      // Reports list
-      SizedBox(
-        height: 400,
-        child: _buildReportsList(),
-      ),
-      ],
-    ),
-    ),
       ),
     );
   }

@@ -49,21 +49,30 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Image.asset(
-                      'assets/logo.png',
-                      height: 120,
-                    ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Full width logo - edge to edge
+                Image.asset(
+                  'assets/loggo.png',
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
 
-                    const SizedBox(height: 48),
+                const SizedBox(height: 48),
+
+                // Form with padding
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
@@ -158,9 +167,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         return const SizedBox.shrink();
                       },
                     ),
-                  ],
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),

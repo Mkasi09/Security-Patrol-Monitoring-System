@@ -15,13 +15,22 @@ class UserManagementScreen extends StatefulWidget {
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
   final FirestoreService _firestoreService = FirestoreService();
+  final TextEditingController _searchController = TextEditingController();
   bool _isLoading = false;
   List<User> _users = [];
+  List<User> _filteredUsers = [];
 
   @override
   void initState() {
     super.initState();
     _loadUsers();
+    _searchController.addListener(_filterUsers);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUsers() async {
@@ -30,6 +39,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final users = await _firestoreService.getAllUsers();
       setState(() {
         _users = users;
+        _filteredUsers = users;
         _isLoading = false;
       });
     } catch (e) {
@@ -43,6 +53,23 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         );
       }
     }
+  }
+
+  void _filterUsers() {
+    final query = _searchController.text.toLowerCase().trim();
+    
+    setState(() {
+      if (query.isEmpty) {
+        _filteredUsers = _users;
+      } else {
+        _filteredUsers = _users.where((user) {
+          return user.name.toLowerCase().contains(query) ||
+                 user.email.toLowerCase().contains(query) ||
+                 (user.phoneNumber?.toLowerCase().contains(query) ?? false) ||
+                 user.role.toLowerCase().contains(query);
+        }).toList();
+      }
+    });
   }
 
   Future<void> _deleteUser(User user) async {
@@ -104,80 +131,126 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Header with Add User Button
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Text(
-                  'Users (${_users.length})',
-                  style: AppTheme.heading2,
-                ),
-                const Spacer(),
-                ElevatedButton.icon(
-                  onPressed: () => Navigator.pushNamed(context, '/add_user'),
-                  icon: const Icon(Icons.person_add),
-                  label: const Text('Add User'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Search Bar
+            Container(
+              margin: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search users by name, email, phone, or role...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.3),
+                    ),
                   ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: AppTheme.primaryColor,
+                      width: 2,
+                    ),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
                 ),
-              ],
+              ),
             ),
-          ),
-          
-          // Users List
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _users.isEmpty
-                    ? _buildEmptyState()
-                    : _buildUsersList(),
-          ),
-        ],
+            
+            // Header with Add User Button
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Text(
+                    _searchController.text.isNotEmpty 
+                        ? 'Users (${_filteredUsers.length} found)'
+                        : 'Users (${_users.length})',
+                    style: AppTheme.heading2,
+                  ),
+                  const Spacer(),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.pushNamed(context, '/add_user'),
+                    icon: const Icon(Icons.person_add),
+                    label: const Text('Add User'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Users List
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filteredUsers.isEmpty
+                      ? _buildEmptyState()
+                      : _buildUsersList(),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildEmptyState() {
+    final hasSearchQuery = _searchController.text.isNotEmpty;
+    
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.people_outline,
+            hasSearchQuery ? Icons.search_off : Icons.people_outline,
             size: 80,
             color: AppTheme.textSecondary,
           ),
           const SizedBox(height: 16),
           Text(
-            'No Users Found',
+            hasSearchQuery ? 'No Users Found' : 'No Users Found',
             style: AppTheme.heading3.copyWith(
               color: AppTheme.textSecondary,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Start by adding your first user',
+            hasSearchQuery 
+                ? 'No users match your search criteria'
+                : 'Start by adding your first user',
             style: AppTheme.body2.copyWith(
               color: AppTheme.textSecondary,
             ),
+            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.pushNamed(context, '/add_user'),
-            icon: const Icon(Icons.person_add),
-            label: const Text('Add First User'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          if (!hasSearchQuery) ...[
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pushNamed(context, '/add_user'),
+              icon: const Icon(Icons.person_add),
+              label: const Text('Add First User'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -186,9 +259,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Widget _buildUsersList() {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: _users.length,
+      itemCount: _filteredUsers.length,
       itemBuilder: (context, index) {
-        final user = _users[index];
+        final user = _filteredUsers[index];
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
