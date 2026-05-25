@@ -1,30 +1,31 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:magzmotron/main.dart';
+import 'package:magzmotron/models/patrol_shift.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  test('PatrolShift serializes scheduled assignments', () {
+    final startsAt = DateTime(2026, 5, 23, 8);
+    final endsAt = DateTime(2026, 5, 23, 16);
+    final createdAt = DateTime(2026, 5, 22, 12);
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    final shift = PatrolShift(
+      id: 'shift_1',
+      guardId: 'guard_1',
+      guardName: 'Jane Guard',
+      locationId: 'loc_1',
+      locationName: 'Main Gate',
+      startsAt: startsAt,
+      endsAt: endsAt,
+      notes: 'Front gate and parking sweep',
+      createdAt: createdAt,
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    final restored = PatrolShift.fromMap(shift.toMap());
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(restored.id, 'shift_1');
+    expect(restored.guardName, 'Jane Guard');
+    expect(restored.locationName, 'Main Gate');
+    expect(restored.status, 'scheduled');
+    expect(restored.startsAt, startsAt);
+    expect(restored.endsAt, endsAt);
   });
 }

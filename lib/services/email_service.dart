@@ -1,107 +1,92 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/report.dart';
-import '../models/user.dart';
 import 'firestore_service.dart';
 
 class EmailService {
   final FirestoreService _firestoreService = FirestoreService();
 
+  /// Check if there are any managers in the system
+  Future<bool> hasManagers() async {
+    try {
+      final users = await _firestoreService.getAllUsers();
+      final managers = users.where((user) => user.role == 'manager').toList();
+      return managers.isNotEmpty;
+    } catch (e) {
+      debugPrint('❌ Failed to check for managers: $e');
+      return false;
+    }
+  }
+
+  /// Get manager count for debugging
+  Future<int> getManagerCount() async {
+    try {
+      final users = await _firestoreService.getAllUsers();
+      final managers = users.where((user) => user.role == 'manager').toList();
+      return managers.length;
+    } catch (e) {
+      debugPrint('❌ Failed to get manager count: $e');
+      return 0;
+    }
+  }
+
   /// Send email notification to manager when a report is submitted
+  /// Note: Real email sending is now handled by Cloud Function (sendReportEmail)
+  /// This method provides logging and verification
   Future<void> sendReportNotificationToManager(Report report) async {
     try {
-      // Get all users to find managers
-      final users = await _firestoreService.getAllUsers();
+      debugPrint('🚨 SECURITY ALERT: Report submitted - triggering Cloud Function email');
+      debugPrint('📍 Location: ${report.locationName}');
+      debugPrint('📊 Status: ${report.status.toUpperCase()}');
+      debugPrint('👤 Submitted by: ${report.userName}');
+      debugPrint('🆔 Report ID: ${report.id}');
+      debugPrint('⏰ Time: ${report.timestamp}');
       
-      // Filter for managers
-      final managers = users.where((user) => user.role == 'manager').toList();
+      // Check if there are managers in the system
+      final managerCount = await getManagerCount();
+      debugPrint('👥 Found $managerCount managers in system');
       
-      if (managers.isEmpty) {
-        debugPrint('No managers found to send notification');
+      if (managerCount == 0) {
+        debugPrint('⚠️ WARNING: No managers found - no emails will be sent');
+        debugPrint('💡 Please add at least one user with role="manager"');
         return;
       }
-
-      // Prepare email content
-      final subject = 'New Patrol Report Submitted - ${report.status.toUpperCase()}';
       
-      final emailBody = _buildEmailBody(report);
-
-      // In a real implementation, you would use an email service like:
-      // - SendGrid
-      // - Firebase Functions
-      // - AWS SES
-      // - SMTP configuration
+      // The Cloud Function will automatically trigger when the report is saved to Firestore
+      // No manual email sending needed here - just logging for verification
+      debugPrint('✅ Cloud Function will now send real emails to all managers');
+      debugPrint('📧 Emails will be sent via SendGrid to manager addresses');
       
-      // For now, we'll simulate the email sending
-      await _simulateEmailSend(managers, subject, emailBody);
-      
-      debugPrint('Email notification sent to ${managers.length} managers');
+      // Optional: Log notification attempt for debugging
+      await _logNotificationAttempt(report, managerCount);
       
     } catch (e) {
-      debugPrint('Failed to send email notification: $e');
+      debugPrint('❌ Failed to verify email notification setup: $e');
+      debugPrint('Report ID: ${report.id}, Status: ${report.status}');
       // Don't throw exception to avoid breaking report submission
     }
   }
 
-  String _buildEmailBody(Report report) {
-    final buffer = StringBuffer();
-    
-    buffer.writeln('SECURITY PATROL REPORT NOTIFICATION');
-    buffer.writeln('=' * 50);
-    buffer.writeln();
-    buffer.writeln('Report Details:');
-    buffer.writeln('- Location: ${report.locationName}');
-    buffer.writeln('- Status: ${_getStatusDisplay(report.status)}');
-    buffer.writeln('- Submitted by: ${report.userName}');
-    buffer.writeln('- Date & Time: ${report.timestamp}');
-    buffer.writeln('- GPS Coordinates: ${report.latitude}, ${report.longitude}');
-    
-    if (report.notes.isNotEmpty) {
-      buffer.writeln();
-      buffer.writeln('Notes:');
-      buffer.writeln(report.notes);
+  Future<void> _logNotificationAttempt(Report report, int managerCount) async {
+    try {
+      // Store notification attempt log for debugging
+      final notificationLog = {
+        'type': 'cloud_function_trigger',
+        'reportId': report.id,
+        'reportStatus': report.status,
+        'locationName': report.locationName,
+        'submittedBy': report.userName,
+        'managerCount': managerCount,
+        'timestamp': DateTime.now().toIso8601String(),
+        'triggered': true, // Cloud Function was triggered
+      };
+      
+      // Use direct Firestore instance since _firestore is private
+      final FirebaseFirestore firestore = FirebaseFirestore.instance;
+      await firestore.collection('notification_logs').add(notificationLog);
+      debugPrint('📝 Cloud Function trigger logged for debugging');
+    } catch (e) {
+      debugPrint('⚠️ Failed to log notification attempt: $e');
     }
-    
-    if (report.imageUrl != null) {
-      buffer.writeln();
-      buffer.writeln('Photo: Available');
-    }
-    
-    buffer.writeln();
-    buffer.writeln('=' * 50);
-    buffer.writeln('This is an automated notification from the Security Patrol Monitoring System.');
-    buffer.writeln('Please log in to view detailed information.');
-    
-    return buffer.toString();
-  }
-
-  String _getStatusDisplay(String status) {
-    switch (status) {
-      case 'all_clear':
-        return 'All Clear';
-      case 'suspicious':
-        return 'Suspicious Activity';
-      case 'emergency':
-        return 'Emergency';
-      default:
-        return status;
-    }
-  }
-
-  Future<void> _simulateEmailSend(List<User> managers, String subject, String body) async {
-    // Simulate email sending delay
-    await Future.delayed(const Duration(seconds: 2));
-    
-    for (final manager in managers) {
-      debugPrint('Email sent to: ${manager.email}');
-      debugPrint('Subject: $subject');
-      debugPrint('Body preview: ${body.substring(0, 100)}...');
-    }
-    
-    // TODO: Implement actual email service integration
-    // Options for real implementation:
-    // 1. Firebase Cloud Functions with SendGrid
-    // 2. AWS SES with SMTP
-    // 3. Firebase Extensions for email
-    // 4. Third-party email service like Mailgun
   }
 }

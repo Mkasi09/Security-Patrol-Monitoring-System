@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/patrol_shift.dart';
+import '../models/report.dart';
 import '../providers/auth_provider.dart';
 import '../services/firestore_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/modern_navigation_drawer.dart';
-import '../widgets/modern_bottom_navigation.dart';
 import '../widgets/modern_app_bar.dart';
-import '../models/report.dart';
-import 'qr_scanner_screen.dart';
-import 'report_screen.dart';
+import '../widgets/modern_bottom_navigation.dart';
+import '../widgets/modern_navigation_drawer.dart';
+import 'guard_assignments_screen.dart';
 import 'patrol_history_screen.dart';
 import 'profile_screen.dart';
+import 'qr_scanner_screen.dart';
+import 'report_screen.dart';
 
 class GuardHomeScreen extends StatefulWidget {
   const GuardHomeScreen({super.key});
@@ -22,23 +24,17 @@ class GuardHomeScreen extends StatefulWidget {
 class _GuardHomeScreenState extends State<GuardHomeScreen> {
   final FirestoreService _firestoreService = FirestoreService();
 
+  late final PageController _pageController;
   int _currentIndex = 0;
-  late PageController _pageController;
-  
-  // Data state
-  List<Report> _recentAlerts = [];
-  Map<String, int> _statistics = {
-    'today': 0,
-    'week': 0,
-    'total': 0,
-  };
   bool _isLoading = true;
   String? _error;
+  List<Report> _recentReports = [];
+  List<PatrolShift> _assignments = [];
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: _currentIndex);
+    _pageController = PageController();
     _loadHomeData();
   }
 
@@ -48,7 +44,6 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
     super.dispose();
   }
 
-  /// Load home screen data
   Future<void> _loadHomeData() async {
     setState(() {
       _isLoading = true;
@@ -56,102 +51,79 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
     });
 
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final userId = authProvider.currentUser?.id;
-      
-      if (userId != null) {
-        // Fetch recent alerts
-        final alerts = await _firestoreService.getReportsByUserId(userId);
-        
-        // Calculate statistics
-        final now = DateTime.now();
-        final today = DateTime(now.year, now.month, now.day);
-        final weekStart = today.subtract(Duration(days: today.weekday - 1));
-        
-        int todayCount = 0;
-        int weekCount = 0;
-        
-        for (final alert in alerts) {
-          if (alert.timestamp.isAfter(today)) {
-            todayCount++;
-          }
-          if (alert.timestamp.isAfter(weekStart)) {
-            weekCount++;
-          }
-        }
-        
-        setState(() {
-          _recentAlerts = alerts.take(5).toList(); // Show last 5 alerts
-          _statistics = {
-            'today': todayCount,
-            'week': weekCount,
-            'total': alerts.length,
-          };
-          _isLoading = false;
-        });
-      } else {
+      final user = Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ).currentUser;
+      if (user == null) {
         setState(() {
           _error = 'User not authenticated';
           _isLoading = false;
         });
+        return;
       }
-    } catch (e) {
+
+      final reports = await _firestoreService.getReportsByUserId(user.id);
+      final assignments = await _firestoreService.getPatrolShiftsByGuard(
+        user.id,
+      );
+
+      if (!mounted) return;
       setState(() {
-        _error = 'Failed to load data: $e';
+        _recentReports = reports.take(5).toList();
+        _assignments = assignments;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to load guard data: $e';
         _isLoading = false;
       });
     }
   }
 
-  /// 🔥 Central Scan Logic (NO duplication anymore)
   Future<void> _startScanFlow() async {
     final result = await Navigator.push<String>(
       context,
+      MaterialPageRoute(builder: (context) => const QRScannerScreen()),
+    );
+
+    if (result == null || !mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final location = await _firestoreService.getLocationByQRCode(result);
+    if (!mounted) return;
+    Navigator.pop(context);
+
+    if (location == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Invalid QR code. Location not registered.'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+      return;
+    }
+
+    await Navigator.push(
+      context,
       MaterialPageRoute(
-        builder: (context) => const QRScannerScreen(),
+        builder: (context) => ReportScreen(
+          locationId: location.id,
+          locationName: location.name,
+          qrCode: result,
+        ),
       ),
     );
 
-    if (result != null && mounted) {
-      // Show loading
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(child: CircularProgressIndicator()),
-      );
-
-      final location =
-      await _firestoreService.getLocationByQRCode(result);
-
-      if (!mounted) return;
-
-      Navigator.pop(context); // close loading
-
-      if (location != null) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ReportScreen(
-              locationId: location.id,
-              locationName: location.name,
-              qrCode: result,
-            ),
-          ),
-        ).then((_) {
-          // Refresh data when returning from report screen
-          if (mounted) {
-            _loadHomeData();
-          }
-        });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:
-            const Text('Invalid QR code. Location not registered.'),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
+    if (mounted) {
+      _loadHomeData();
     }
   }
 
@@ -161,7 +133,7 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
       resizeToAvoidBottomInset: false,
       backgroundColor: AppTheme.backgroundColor,
       appBar: ModernAppBar(
-        title: _currentIndex == 2 ? 'Patrol History' : 'Guard Dashboard',
+        title: _pageTitle(),
         leading: Builder(
           builder: (context) => IconButton(
             icon: const Icon(Icons.menu_rounded),
@@ -169,423 +141,101 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
           ),
         ),
       ),
-      drawer: ModernNavigationDrawer(
+      drawer: const ModernNavigationDrawer(
         currentPage: 'home',
         userRole: 'guard',
       ),
       body: SafeArea(
         child: PageView(
           controller: _pageController,
-          onPageChanged: (index) {
-            setState(() => _currentIndex = index);
-          },
+          onPageChanged: (index) => setState(() => _currentIndex = index),
           children: [
-            /// 🏠 HOME TAB
-            RefreshIndicator(
-              onRefresh: _loadHomeData,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildWelcomeCard(),
-                    const SizedBox(height: 24),
-
-                    _buildStatsSection(),
-                    const SizedBox(height: 24),
-
-                    Text('Quick Actions', style: AppTheme.heading3),
-                    const SizedBox(height: 16),
-
-                    _buildActionCardsGrid(),
-                    const SizedBox(height: 24),
-
-                    Text('Recent Activity', style: AppTheme.heading3),
-                    const SizedBox(height: 16),
-
-                    _buildRecentActivitySection(),
-                  ],
-                ),
-              ),
-            ),
-
-            /// 📷 SCAN TAB
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.qr_code_scanner_rounded,
-                    size: 80,
-                    color: AppTheme.primaryColor,
-                  ),
-                  const SizedBox(height: 16),
-                  Text('QR Scanner', style: AppTheme.heading3),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Scan QR code at the site to submit a report',
-                    style: AppTheme.body2,
-                  ),
-                  const SizedBox(height: 32),
-                  ElevatedButton.icon(
-                    onPressed: _startScanFlow,
-                    icon: const Icon(Icons.qr_code_scanner_rounded),
-                    label: const Text('Start Scanning'),
-                  ),
-                ],
-              ),
-            ),
-
-            /// 📜 HISTORY TAB
+            _buildHomeTab(),
+            _buildScanTab(),
+            GuardAssignmentsScreen(onStartScan: _startScanFlow),
             const PatrolHistoryScreen(),
-
-            /// 👤 PROFILE TAB
             const ProfileScreen(),
           ],
         ),
       ),
       bottomNavigationBar: ModernBottomNavigation(
         currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() => _currentIndex = index);
-          _pageController.animateToPage(
-            index,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
-        },
+        onTap: _goToPage,
       ),
     );
   }
 
-  Widget _comingSoonTab({
-    required IconData icon,
-    required String title,
-    required String description,
-  }) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 80, color: AppTheme.textSecondary),
-          const SizedBox(height: 16),
-          Text(title, style: AppTheme.heading3),
-          const SizedBox(height: 8),
-          Text(description, style: AppTheme.body2),
-          const SizedBox(height: 32),
-          Text('Coming soon', style: AppTheme.caption),
-        ],
+  Widget _buildHomeTab() {
+    return RefreshIndicator(
+      onRefresh: _loadHomeData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildWelcomeCard(),
+            const SizedBox(height: 18),
+            _buildTodaySummary(),
+            const SizedBox(height: 18),
+            _buildNextAssignmentCard(),
+            const SizedBox(height: 22),
+            Text('Quick Actions', style: AppTheme.heading3),
+            const SizedBox(height: 12),
+            _buildQuickActions(),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Text('Recent Activity', style: AppTheme.heading3),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => _goToPage(3),
+                  child: const Text('View All'),
+                ),
+              ],
+            ),
+            _buildRecentActivity(),
+          ],
+        ),
       ),
     );
   }
 
-  /// 🔹 WELCOME CARD
   Widget _buildWelcomeCard() {
-    final authProvider = Provider.of<AuthProvider>(context);
+    final user = Provider.of<AuthProvider>(context).currentUser;
+    final next = _nextAssignment();
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppTheme.primaryColor, AppTheme.primaryDark],
-        ),
-        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.primaryColor,
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
-          Image.asset(
-                    'assets/logo1.png',
-                    height: 32,
-                    color: Colors.white,
-                  ),
-          const SizedBox(width: 16),
+          Image.asset('assets/logo1.png', height: 34, color: Colors.white),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Welcome back',
-                    style: TextStyle(color: Colors.white70)),
-                Text(
-                  authProvider.currentUser?.name ?? "Guard",
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold),
-                ),
                 const Text(
-                  'You are on active patrol',
+                  'Active patrol',
                   style: TextStyle(color: Colors.white70),
                 ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 🔹 STATS
-  Widget _buildStatsSection() {
-    if (_isLoading) {
-      return Row(
-        children: [
-          Expanded(child: _buildLoadingStatCard()),
-          const SizedBox(width: 12),
-          Expanded(child: _buildLoadingStatCard()),
-          const SizedBox(width: 12),
-          Expanded(child: _buildLoadingStatCard()),
-        ],
-      );
-    }
-    
-    return Row(
-      children: [
-        Expanded(child: _buildStatCard("Today's Patrols", _statistics['today'].toString())),
-        const SizedBox(width: 12),
-        Expanded(child: _buildStatCard("This Week", _statistics['week'].toString())),
-        const SizedBox(width: 12),
-        Expanded(child: _buildStatCard("Alerts", _statistics['total'].toString())),
-      ],
-    );
-  }
-
-  Widget _buildStatCard(String title, String value) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Text(value,
-              style: const TextStyle(
-                  fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text(title),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoadingStatCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Container(
-            width: 40,
-            height: 12,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 🔹 ACTIONS
-  Widget _buildActionCardsGrid() {
-    return Column(
-      children: [
-        _buildPrimaryActionCard(
-          title: 'Scan Location',
-          description: 'Scan QR code to start patrol',
-          onTap: _startScanFlow,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPrimaryActionCard({
-    required String title,
-    required String description,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppTheme.primaryColor,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.qr_code_scanner, color: Colors.white),
-            const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(color: Colors.white)),
-                Text(description,
-                    style: const TextStyle(color: Colors.white70)),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 🔹 ACTIVITY
-  Widget _buildRecentActivitySection() {
-    if (_isLoading) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            _buildLoadingActivityItem(),
-            _buildLoadingActivityItem(),
-            _buildLoadingActivityItem(),
-          ],
-        ),
-      );
-    }
-
-    if (_error != null) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Center(
-          child: Column(
-            children: [
-              Icon(Icons.error_outline, color: AppTheme.errorColor, size: 48),
-              const SizedBox(height: 12),
-              Text(
-                'Error loading activity',
-                style: AppTheme.heading3.copyWith(color: AppTheme.errorColor),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _error!,
-                style: AppTheme.body2,
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_recentAlerts.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Center(
-          child: Text(
-            'No patrol activity yet\nScan your first location to begin',
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ..._recentAlerts.map((alert) => _buildActivityItem(alert)),
-          const SizedBox(height: 12),
-          Center(
-            child: TextButton(
-              onPressed: () {
-                setState(() => _currentIndex = 2);
-                _pageController.animateToPage(
-                  2,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                );
-              },
-              child: const Text('View All History'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActivityItem(Report report) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: _getStatusColor(report.status).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              _getStatusIcon(report.status),
-              color: _getStatusColor(report.status),
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      report.locationName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      _formatTime(report.timestamp),
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
                 Text(
-                  report.notes.isNotEmpty ? report.notes : 'No notes',
-                  style: TextStyle(
-                    color: Colors.grey.shade700,
-                    fontSize: 13,
+                  user?.name ?? 'Guard',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
                   ),
-                  maxLines: 2,
+                ),
+                Text(
+                  next == null
+                      ? 'No current assignment'
+                      : 'Next: ${next.locationName}',
+                  style: const TextStyle(color: Colors.white70),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -596,86 +246,480 @@ class _GuardHomeScreenState extends State<GuardHomeScreen> {
     );
   }
 
-  Widget _buildLoadingActivityItem() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildTodaySummary() {
+    if (_isLoading) return _loadingPanel(height: 92);
+
+    final todayReports = _recentReports.where((report) {
+      return _isSameDay(report.timestamp, DateTime.now());
+    }).length;
+
+    final scheduled = _todayAssignments().where((shift) {
+      final status = _effectiveShiftStatus(shift);
+      return status == 'scheduled' || status == 'active';
+    }).length;
+    final completed = _todayAssignments().where((shift) {
+      return _effectiveShiftStatus(shift) == 'completed';
+    }).length;
+    final missed = _todayAssignments().where((shift) {
+      return _effectiveShiftStatus(shift) == 'missed';
+    }).length;
+
+    return Row(
+      children: [
+        Expanded(
+          child: _metricCard('Reports', todayReports, AppTheme.primaryColor),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: _metricCard('Due', scheduled, AppTheme.warningColor)),
+        const SizedBox(width: 8),
+        Expanded(child: _metricCard('Done', completed, AppTheme.successColor)),
+        const SizedBox(width: 8),
+        Expanded(child: _metricCard('Missed', missed, AppTheme.errorColor)),
+      ],
+    );
+  }
+
+  Widget _metricCard(String label, int value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.14)),
+      ),
+      child: Column(
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(8),
+          Text(
+            value.toString(),
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: color,
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: double.infinity,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
+          Text(label, style: AppTheme.caption, overflow: TextOverflow.ellipsis),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNextAssignmentCard() {
+    if (_isLoading) return _loadingPanel(height: 170);
+
+    final next = _nextAssignment();
+    if (next == null) {
+      return _emptyPanel(
+        icon: Icons.event_available,
+        title: 'No active assignment',
+        message:
+            'Assigned patrols will appear here as soon as a manager schedules them.',
+        action: OutlinedButton.icon(
+          onPressed: () => _goToPage(2),
+          icon: const Icon(Icons.event_note),
+          label: const Text('Open Tasks'),
+        ),
+      );
+    }
+
+    final status = _effectiveShiftStatus(next);
+    final color = _shiftColor(status);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.route, color: color),
+              const SizedBox(width: 8),
+              Text('Next Patrol', style: AppTheme.heading3),
+              const Spacer(),
+              _pill(status, color),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(next.locationName, style: AppTheme.subtitle1),
+          const SizedBox(height: 4),
+          Text(_shiftTime(next), style: AppTheme.body2),
+          if (next.notes.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(next.notes, style: AppTheme.body2),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _startScanFlow,
+                  icon: const Icon(Icons.qr_code_scanner),
+                  label: const Text('Scan'),
                 ),
-                const SizedBox(height: 8),
-                Container(
-                  width: double.infinity,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _goToPage(2),
+                  icon: const Icon(Icons.event_note),
+                  label: const Text('Tasks'),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'all_clear':
-        return Colors.green;
-      case 'suspicious':
-        return Colors.orange;
-      case 'emergency':
-        return Colors.red;
+  Widget _buildQuickActions() {
+    return Column(
+      children: [
+        InkWell(
+          onTap: _startScanFlow,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.qr_code_scanner, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Scan Location',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: Colors.white),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _smallAction(
+                Icons.warning,
+                'Suspicious',
+                AppTheme.warningColor,
+                _startScanFlow,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _smallAction(
+                Icons.emergency,
+                'Emergency',
+                AppTheme.errorColor,
+                _startScanFlow,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _smallAction(
+    IconData icon,
+    String label,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.16)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(height: 6),
+            Text(label, style: AppTheme.subtitle2),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentActivity() {
+    if (_isLoading) return _loadingPanel(height: 150);
+    if (_error != null) {
+      return _emptyPanel(
+        icon: Icons.error_outline,
+        title: 'Could not load activity',
+        message: _error!,
+      );
+    }
+    if (_recentReports.isEmpty) {
+      return _emptyPanel(
+        icon: Icons.history,
+        title: 'No patrol activity yet',
+        message: 'Scan your first location to begin your patrol history.',
+      );
+    }
+
+    return Column(
+      children: _recentReports.map((report) {
+        final color = _reportColor(report.status);
+        return Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: color.withValues(alpha: 0.12),
+              child: Icon(_reportIcon(report.status), color: color),
+            ),
+            title: Text(
+              report.locationName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              report.notes.isEmpty
+                  ? _formatRelative(report.timestamp)
+                  : report.notes,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: report.imageUrl != null
+                ? const Icon(Icons.image, color: AppTheme.secondaryColor)
+                : Text(
+                    _formatRelative(report.timestamp),
+                    style: AppTheme.caption,
+                  ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildScanTab() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.qr_code_scanner_rounded,
+              size: 88,
+              color: AppTheme.primaryColor,
+            ),
+            const SizedBox(height: 16),
+            Text('Scan Checkpoint', style: AppTheme.heading3),
+            const SizedBox(height: 8),
+            Text(
+              'Scan the QR code at a checkpoint to submit a patrol report.',
+              textAlign: TextAlign.center,
+              style: AppTheme.body2,
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _startScanFlow,
+                icon: const Icon(Icons.qr_code_scanner_rounded),
+                label: const Text('Start Scanning'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyPanel({
+    required IconData icon,
+    required String title,
+    required String message,
+    Widget? action,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: AppTheme.primaryColor, size: 42),
+          const SizedBox(height: 10),
+          Text(title, style: AppTheme.subtitle1, textAlign: TextAlign.center),
+          const SizedBox(height: 6),
+          Text(message, style: AppTheme.body2, textAlign: TextAlign.center),
+          if (action != null) ...[const SizedBox(height: 14), action],
+        ],
+      ),
+    );
+  }
+
+  Widget _loadingPanel({required double height}) {
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  String _pageTitle() {
+    switch (_currentIndex) {
+      case 1:
+        return 'Scan Checkpoint';
+      case 2:
+        return 'Assignments';
+      case 3:
+        return 'Patrol History';
+      case 4:
+        return 'Profile';
       default:
-        return Colors.blue;
+        return 'Guard Dashboard';
     }
   }
 
-  IconData _getStatusIcon(String status) {
+  void _goToPage(int index) {
+    setState(() => _currentIndex = index);
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
+  List<PatrolShift> _todayAssignments() {
+    final now = DateTime.now();
+    return _assignments
+        .where((shift) => _isSameDay(shift.startsAt, now))
+        .toList();
+  }
+
+  PatrolShift? _nextAssignment() {
+    final now = DateTime.now();
+    final active = _assignments.where((shift) {
+      return shift.status == 'scheduled' &&
+          shift.startsAt.isBefore(now) &&
+          shift.endsAt.isAfter(now);
+    }).toList();
+    if (active.isNotEmpty) return active.first;
+
+    final upcoming = _assignments.where((shift) {
+      return shift.status == 'scheduled' && shift.startsAt.isAfter(now);
+    }).toList();
+    upcoming.sort((a, b) => a.startsAt.compareTo(b.startsAt));
+    return upcoming.isEmpty ? null : upcoming.first;
+  }
+
+  String _effectiveShiftStatus(PatrolShift shift) {
+    if (shift.status == 'scheduled' && shift.endsAt.isBefore(DateTime.now())) {
+      return 'missed';
+    }
+    if (shift.status == 'scheduled' &&
+        shift.startsAt.isBefore(DateTime.now()) &&
+        shift.endsAt.isAfter(DateTime.now())) {
+      return 'active';
+    }
+    return shift.status;
+  }
+
+  Widget _pill(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  Color _shiftColor(String status) {
     switch (status) {
-      case 'all_clear':
-        return Icons.check_circle;
+      case 'active':
+        return AppTheme.warningColor;
+      case 'completed':
+        return AppTheme.successColor;
+      case 'missed':
+        return AppTheme.errorColor;
+      default:
+        return AppTheme.primaryColor;
+    }
+  }
+
+  Color _reportColor(String status) {
+    switch (status) {
+      case 'emergency':
+        return AppTheme.errorColor;
+      case 'suspicious':
+        return AppTheme.warningColor;
+      default:
+        return AppTheme.successColor;
+    }
+  }
+
+  IconData _reportIcon(String status) {
+    switch (status) {
+      case 'emergency':
+        return Icons.emergency;
       case 'suspicious':
         return Icons.warning;
-      case 'emergency':
-        return Icons.error;
       default:
-        return Icons.info;
+        return Icons.check_circle;
     }
   }
 
-  String _formatTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
 
-    if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h ago';
-    } else {
-      return '${dateTime.day}/${dateTime.month}';
-    }
+  String _shiftTime(PatrolShift shift) {
+    return '${_dateLabel(shift.startsAt)} ${_clock(shift.startsAt)} - ${_clock(shift.endsAt)}';
+  }
+
+  String _dateLabel(DateTime date) {
+    final now = DateTime.now();
+    if (_isSameDay(date, now)) return 'Today';
+    if (_isSameDay(date, now.add(const Duration(days: 1)))) return 'Tomorrow';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  String _clock(DateTime date) {
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  String _formatRelative(DateTime dateTime) {
+    final difference = DateTime.now().difference(dateTime);
+    if (difference.inMinutes < 60) return '${difference.inMinutes}m ago';
+    if (difference.inHours < 24) return '${difference.inHours}h ago';
+    return '${dateTime.day}/${dateTime.month}';
   }
 }

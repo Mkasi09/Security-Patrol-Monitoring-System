@@ -27,13 +27,9 @@ class _ModernBottomNavigationState extends State<ModernBottomNavigation>
       duration: const Duration(milliseconds: 200),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 1.2,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.elasticOut,
-    ));
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.elasticOut),
+    );
   }
 
   @override
@@ -62,25 +58,26 @@ class _ModernBottomNavigationState extends State<ModernBottomNavigation>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(
-                icon: Icons.home_rounded,
-                label: 'Home',
-                index: 0,
-              ),
+              _buildNavItem(icon: Icons.home_rounded, label: 'Home', index: 0),
               _buildNavItem(
                 icon: Icons.qr_code_scanner_rounded,
                 label: 'Scan',
                 index: 1,
               ),
               _buildNavItem(
+                icon: Icons.event_note_rounded,
+                label: 'Tasks',
+                index: 2,
+              ),
+              _buildNavItem(
                 icon: Icons.history_rounded,
                 label: 'History',
-                index: 2,
+                index: 3,
               ),
               _buildNavItem(
                 icon: Icons.person_rounded,
                 label: 'Profile',
-                index: 3,
+                index: 4,
               ),
             ],
           ),
@@ -95,7 +92,7 @@ class _ModernBottomNavigationState extends State<ModernBottomNavigation>
     required int index,
   }) {
     final isSelected = widget.currentIndex == index;
-    
+
     return GestureDetector(
       onTap: () {
         if (widget.currentIndex != index) {
@@ -109,13 +106,13 @@ class _ModernBottomNavigationState extends State<ModernBottomNavigation>
         animation: _scaleAnimation,
         builder: (context, child) {
           return Transform.scale(
-            scale: isSelected && _animationController.isAnimating 
-                ? _scaleAnimation.value 
+            scale: isSelected && _animationController.isAnimating
+                ? _scaleAnimation.value
                 : 1.0,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: isSelected 
+                color: isSelected
                     ? AppTheme.primaryColor.withValues(alpha: 0.1)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(16),

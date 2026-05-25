@@ -25,10 +25,7 @@ class AdminDrawer extends StatelessWidget {
             ),
             accountName: Text(
               user?.name ?? 'Admin User',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             accountEmail: Text(
               user?.email ?? 'admin@example.com',
@@ -37,7 +34,7 @@ class AdminDrawer extends StatelessWidget {
             currentAccountPicture: CircleAvatar(
               backgroundColor: Colors.white.withValues(alpha: 0.2),
               child: Text(
-                user?.name.isNotEmpty == true 
+                user?.name.isNotEmpty == true
                     ? user!.name[0].toUpperCase()
                     : 'A',
                 style: const TextStyle(
@@ -48,7 +45,7 @@ class AdminDrawer extends StatelessWidget {
               ),
             ),
           ),
-          
+
           // Menu items
           Expanded(
             child: ListView(
@@ -59,7 +56,18 @@ class AdminDrawer extends StatelessWidget {
                   title: const Text('Dashboard'),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pushReplacementNamed(context, '/manager_dashboard');
+                    Navigator.pushReplacementNamed(
+                      context,
+                      '/manager_dashboard',
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.event_note),
+                  title: const Text('Patrol Schedule'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.pushReplacementNamed(context, '/patrol_schedule');
                   },
                 ),
                 ListTile(
@@ -102,14 +110,16 @@ class AdminDrawer extends StatelessWidget {
                     Navigator.pop(context);
                     // TODO: Navigate to settings when implemented
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Settings page coming soon')),
+                      const SnackBar(
+                        content: Text('Settings page coming soon'),
+                      ),
                     );
                   },
                 ),
               ],
             ),
           ),
-          
+
           // Logout button at bottom with safe area padding
           SafeArea(
             top: false,
@@ -145,7 +155,7 @@ class AdminDrawer extends StatelessWidget {
             onPressed: () {
               Navigator.pop(context);
               Provider.of<AuthProvider>(context, listen: false).signOut();
-              Navigator.pushReplacementNamed(context, '/login');
+              Navigator.pushReplacementNamed(context, '/');
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.errorColor,

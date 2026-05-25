@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/models/location.dart';
-import '../lib/services/qr_pdf_service.dart';
+import 'package:magzmotron/models/location.dart';
 
 void main() {
   group('QR PDF Service Tests', () {

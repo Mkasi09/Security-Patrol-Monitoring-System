@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import '../widgets/quick_action_buttons.dart';
+import '../models/alert.dart';
+import '../models/report.dart';
+import '../services/alert_service.dart';
+import '../services/firestore_service.dart';
+import '../theme/app_theme.dart';
 import '../widgets/admin_app_bar.dart';
 import '../widgets/admin_drawer.dart';
-import '../models/report.dart';
-import '../services/firestore_service.dart';
 import 'report_detail_screen.dart';
 
 class ManagerDashboardScreen extends StatefulWidget {
@@ -15,352 +17,453 @@ class ManagerDashboardScreen extends StatefulWidget {
 
 class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   final FirestoreService _firestoreService = FirestoreService();
+  final AlertService _alertService = AlertService();
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        drawer: const AdminDrawer(),
-        appBar: AdminAppBar(
-          title: 'Manager Dashboard',
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.notifications),
-              onPressed: () {
-                // TODO: Implement notifications
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Notifications coming soon')),
+    return Scaffold(
+      drawer: const AdminDrawer(),
+      appBar: AdminAppBar(
+        title: 'Operations',
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.event_note),
+            onPressed: () => Navigator.pushNamed(context, '/patrol_schedule'),
+            tooltip: 'Patrol schedule',
+          ),
+          IconButton(
+            icon: const Icon(Icons.notifications_active),
+            onPressed: () => Navigator.pushNamed(context, '/alert_center'),
+            tooltip: 'Alert center',
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: () async => setState(() {}),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+          children: [
+            _buildCommandHeader(),
+            const SizedBox(height: 16),
+            FutureBuilder<_DashboardData>(
+              future: _loadDashboardData(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.only(top: 80),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Text('Failed to load dashboard: ${snapshot.error}');
+                }
+
+                final data = snapshot.data ?? _DashboardData.empty();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildMetricsGrid(data),
+                    const SizedBox(height: 20),
+                    _buildQuickActions(),
+                    const SizedBox(height: 20),
+                    _buildSectionHeader('Priority Alerts', 'View All', () {
+                      Navigator.pushNamed(context, '/alert_center');
+                    }),
+                    const SizedBox(height: 10),
+                    _buildPriorityAlerts(data.alerts),
+                    const SizedBox(height: 20),
+                    _buildSectionHeader('Recent Reports', 'View All', () {
+                      Navigator.pushNamed(context, '/all_reports');
+                    }),
+                    const SizedBox(height: 10),
+                    _buildRecentReports(data.reports),
+                  ],
                 );
               },
-              tooltip: 'Notifications',
             ),
           ],
         ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                // Quick Actions
-                const QuickActionButtons(),
+      ),
+    );
+  }
 
-                // Recent Alerts Section
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      const Text(
-                        'Recent Alerts',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/alert_center');
-                        },
-                        child: const Text('View All'),
-                      ),
-                    ],
+  Future<_DashboardData> _loadDashboardData() async {
+    final reports = await _firestoreService.getAllReports();
+    final alerts = await _alertService.getAlerts(limit: 50);
+    return _DashboardData(reports: reports, alerts: alerts);
+  }
+
+  Widget _buildCommandHeader() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryColor,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.security, color: Colors.white, size: 34),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'Security Command Center',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-
-                // Alerts list
-                SizedBox(
-                  height: 400,
-                  child: _buildAlertsList(),
+                SizedBox(height: 4),
+                Text(
+                  'Monitor patrols, incidents, schedules, and response work.',
+                  style: TextStyle(color: Colors.white70),
                 ),
-
-                // Bottom padding to avoid system navigation
-                const SizedBox(height: 16),
               ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 
+  Widget _buildMetricsGrid(_DashboardData data) {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
+      childAspectRatio: 1.55,
+      children: [
+        _metricCard(
+          'Today Reports',
+          data.todayReports,
+          Icons.fact_check,
+          AppTheme.primaryColor,
+        ),
+        _metricCard(
+          'Emergencies',
+          data.emergencyReports,
+          Icons.emergency,
+          AppTheme.errorColor,
+        ),
+        _metricCard(
+          'Open Alerts',
+          data.openAlerts,
+          Icons.notifications_active,
+          AppTheme.warningColor,
+        ),
+        _metricCard(
+          'Resolved',
+          data.resolvedAlerts,
+          Icons.verified,
+          AppTheme.successColor,
+        ),
+      ],
+    );
+  }
 
-  Widget _buildAlertsList() {
-    return StreamBuilder<List<Report>>(
-      stream: _firestoreService.streamReports(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+  Widget _metricCard(String title, int value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  value.toString(),
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  title,
+                  style: AppTheme.caption,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
+  Widget _buildQuickActions() {
+    final actions = [
+      _DashboardAction(
+        Icons.event_note,
+        'Schedule',
+        '/patrol_schedule',
+        AppTheme.primaryColor,
+      ),
+      _DashboardAction(
+        Icons.notifications_active,
+        'Alerts',
+        '/alert_center',
+        AppTheme.errorColor,
+      ),
+      _DashboardAction(
+        Icons.location_on,
+        'Locations',
+        '/locations_list',
+        AppTheme.warningColor,
+      ),
+      _DashboardAction(
+        Icons.people,
+        'Users',
+        '/user_management',
+        AppTheme.secondaryColor,
+      ),
+    ];
 
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('No alerts found'));
-        }
-
-        List<Report> alerts = snapshot.data!;
-
-        return Column(
-          children: [
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: alerts.length > 10 ? 10 : alerts.length,
-                itemBuilder: (context, index) {
-                  final alert = alerts[index];
-                  return _buildAlertCard(alert);
-                },
+    return Row(
+      children: actions.map((action) {
+        return Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: InkWell(
+              onTap: () => Navigator.pushNamed(context, action.route),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                  horizontal: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  children: [
+                    Icon(action.icon, color: action.color),
+                    const SizedBox(height: 6),
+                    Text(
+                      action.label,
+                      style: AppTheme.caption,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
             ),
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/alert_center');
-                },
-                child: alerts.length > 10 
-                    ? Text('View More (${alerts.length - 10} more alerts)')
-                    : const Text('View All Alerts'),
-              ),
-            ),
-          ],
+          ),
         );
-      },
+      }).toList(),
     );
   }
 
-  
-  Widget _buildAlertCard(Report alert) {
-    final statusColor = _getStatusColor(alert.status);
-    final statusText = _getStatusText(alert.status);
+  Widget _buildSectionHeader(String title, String action, VoidCallback onTap) {
+    return Row(
+      children: [
+        Text(title, style: AppTheme.heading3),
+        const Spacer(),
+        TextButton(onPressed: onTap, child: Text(action)),
+      ],
+    );
+  }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ReportDetailScreen(report: alert),
+  Widget _buildPriorityAlerts(List<Alert> alerts) {
+    final priorityAlerts = alerts
+        .where((alert) => alert.status != AlertStatus.resolved)
+        .take(4)
+        .toList();
+
+    if (priorityAlerts.isEmpty) {
+      return _emptyPanel(
+        'No open alerts',
+        'New emergency and suspicious activity alerts will show here.',
+      );
+    }
+
+    return Column(
+      children: priorityAlerts.map((alert) {
+        final color = _priorityColor(alert.priority);
+        return Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: color.withValues(alpha: 0.12),
+              child: Icon(Icons.warning, color: color),
             ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withAlpha(13),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      statusText,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    _formatDateTime(alert.timestamp),
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Icon(Icons.person, size: 16, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text(
-                    alert.userName,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(Icons.location_on, size: 16, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text(
-                    alert.locationName,
-                    style: TextStyle(color: Colors.grey.shade700),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                alert.notes,
-                style: TextStyle(color: Colors.grey.shade600),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+            title: Text(
+              alert.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              alert.message,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(context, '/alert_center'),
           ),
-        ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildRecentReports(List<Report> reports) {
+    final recentReports = reports.take(5).toList();
+    if (recentReports.isEmpty) {
+      return _emptyPanel(
+        'No reports yet',
+        'Submitted guard reports will appear here.',
+      );
+    }
+
+    return Column(
+      children: recentReports.map((report) {
+        final color = _reportColor(report.status);
+        return Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: color.withValues(alpha: 0.12),
+              child: Icon(_reportIcon(report.status), color: color),
+            ),
+            title: Text(
+              report.locationName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              '${report.userName} - ${_formatTime(report.timestamp)}',
+            ),
+            trailing: report.imageUrl != null
+                ? const Icon(Icons.image, color: AppTheme.secondaryColor)
+                : const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ReportDetailScreen(report: report),
+                ),
+              );
+            },
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _emptyPanel(String title, String subtitle) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Text(title, style: AppTheme.subtitle1),
+          const SizedBox(height: 4),
+          Text(subtitle, style: AppTheme.body2, textAlign: TextAlign.center),
+        ],
       ),
     );
   }
 
-  Widget _buildGuardsTab() {
-    final mockGuards = [
-      {'name': 'John Doe', 'email': 'john@example.com', 'status': 'active'},
-      {'name': 'Jane Smith', 'email': 'jane@example.com', 'status': 'active'},
-      {'name': 'Bob Johnson', 'email': 'bob@example.com', 'status': 'inactive'},
-    ];
-
-    return Column(
-      children: [
-        // Compact Quick Actions for Guards
-        const CompactQuickActions(),
-        const SizedBox(height: 16),
-        
-        // Guards List
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: mockGuards.length,
-            itemBuilder: (context, index) {
-              final guard = mockGuards[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.blue.shade100,
-                    child: Text(guard['name']![0]),
-                  ),
-                  title: Text(guard['name'] as String),
-                  subtitle: Text(guard['email'] as String),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: guard['status'] == 'active'
-                          ? Colors.green.withAlpha(25)
-                          : Colors.grey.withAlpha(25),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      guard['status'] as String,
-                      style: TextStyle(
-                        color: guard['status'] == 'active' ? Colors.green : Colors.grey,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLocationsTab() {
-    final mockLocations = [
-      {'name': 'Site A - Main Entrance', 'address': '123 Main St', 'qrCode': 'LOC001'},
-      {'name': 'Site A - Back Gate', 'address': '123 Main St', 'qrCode': 'LOC002'},
-      {'name': 'Site B - Parking', 'address': '456 Oak Ave', 'qrCode': 'LOC003'},
-    ];
-
-    return Column(
-      children: [
-        // Compact Quick Actions for Locations
-        const CompactQuickActions(),
-        const SizedBox(height: 16),
-        
-        // Locations List
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: mockLocations.length,
-            itemBuilder: (context, index) {
-              final location = mockLocations[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: Colors.orange,
-                    child: Icon(Icons.location_on, color: Colors.white),
-                  ),
-                  title: Text(location['name'] as String),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(location['address'] as String),
-                      Text(
-                        'QR: ${location['qrCode']}',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-
-  
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'all_clear':
-        return Colors.green;
-      case 'suspicious':
-        return Colors.orange;
-      case 'emergency':
-        return Colors.red;
-      default:
-        return Colors.blue;
+  Color _priorityColor(AlertPriority priority) {
+    switch (priority) {
+      case AlertPriority.critical:
+        return AppTheme.errorColor;
+      case AlertPriority.high:
+        return AppTheme.warningColor;
+      case AlertPriority.medium:
+        return AppTheme.infoColor;
+      case AlertPriority.low:
+        return AppTheme.successColor;
     }
   }
 
-  String _getStatusText(String status) {
+  Color _reportColor(String status) {
     switch (status) {
-      case 'all_clear':
-        return 'All Clear';
-      case 'suspicious':
-        return 'Suspicious';
       case 'emergency':
-        return 'Emergency';
+        return AppTheme.errorColor;
+      case 'suspicious':
+        return AppTheme.warningColor;
       default:
-        return 'Unknown';
+        return AppTheme.successColor;
     }
   }
 
-  String _formatDateTime(DateTime dateTime) {
+  IconData _reportIcon(String status) {
+    switch (status) {
+      case 'emergency':
+        return Icons.emergency;
+      case 'suspicious':
+        return Icons.warning;
+      default:
+        return Icons.check_circle;
+    }
+  }
+
+  String _formatTime(DateTime dateTime) {
+    final difference = DateTime.now().difference(dateTime);
+    if (difference.inMinutes < 60) return '${difference.inMinutes} min ago';
+    if (difference.inHours < 24) return '${difference.inHours} hours ago';
+    return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+  }
+}
+
+class _DashboardData {
+  final List<Report> reports;
+  final List<Alert> alerts;
+
+  _DashboardData({required this.reports, required this.alerts});
+
+  factory _DashboardData.empty() => _DashboardData(reports: [], alerts: []);
+
+  int get todayReports {
     final now = DateTime.now();
-    final difference = now.difference(dateTime);
-
-    if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} min ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours} hours ago';
-    } else {
-      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
-    }
+    return reports.where((report) {
+      return report.timestamp.year == now.year &&
+          report.timestamp.month == now.month &&
+          report.timestamp.day == now.day;
+    }).length;
   }
+
+  int get emergencyReports =>
+      reports.where((report) => report.status == 'emergency').length;
+
+  int get openAlerts =>
+      alerts.where((alert) => alert.status != AlertStatus.resolved).length;
+
+  int get resolvedAlerts =>
+      alerts.where((alert) => alert.status == AlertStatus.resolved).length;
+}
+
+class _DashboardAction {
+  final IconData icon;
+  final String label;
+  final String route;
+  final Color color;
+
+  _DashboardAction(this.icon, this.label, this.route, this.color);
 }

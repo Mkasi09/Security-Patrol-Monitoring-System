@@ -1,39 +1,27 @@
-import 'package:geolocator/geolocator.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'dart:math' as math;
+
+class PatrolPosition {
+  final double latitude;
+  final double longitude;
+
+  const PatrolPosition({required this.latitude, required this.longitude});
+}
 
 class LocationService {
   static const double defaultRadius = 100.0; // 100 meters
 
   Future<bool> hasPermission() async {
-    final status = await Permission.locationWhenInUse.status;
-    return status.isGranted;
+    return true;
   }
 
   Future<bool> requestPermission() async {
-    final status = await Permission.locationWhenInUse.request();
-    return status.isGranted;
+    return true;
   }
 
-  Future<Position> getCurrentPosition() async {
-    final hasPermission = await this.hasPermission();
-    if (!hasPermission) {
-      final granted = await requestPermission();
-      if (!granted) {
-        throw Exception('Location permission denied');
-      }
-    }
-
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      throw Exception('Location services are disabled');
-    }
-
-    return await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 0,
-      ),
-    );
+  Future<PatrolPosition> getCurrentPosition() async {
+    // GPS verification is intentionally disabled for now. Keep the service
+    // boundary in place so native GPS can be restored without touching reports.
+    return const PatrolPosition(latitude: 0.0, longitude: 0.0);
   }
 
   double calculateDistance(
@@ -42,12 +30,21 @@ class LocationService {
     double endLatitude,
     double endLongitude,
   ) {
-    return Geolocator.distanceBetween(
-      startLatitude,
-      startLongitude,
-      endLatitude,
-      endLongitude,
-    );
+    const earthRadiusMeters = 6371000.0;
+    final startLat = _toRadians(startLatitude);
+    final endLat = _toRadians(endLatitude);
+    final deltaLat = _toRadians(endLatitude - startLatitude);
+    final deltaLng = _toRadians(endLongitude - startLongitude);
+
+    final a =
+        math.sin(deltaLat / 2) * math.sin(deltaLat / 2) +
+        math.cos(startLat) *
+            math.cos(endLat) *
+            math.sin(deltaLng / 2) *
+            math.sin(deltaLng / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+
+    return earthRadiusMeters * c;
   }
 
   bool isWithinRadius(
@@ -65,4 +62,6 @@ class LocationService {
     );
     return distance <= radius;
   }
+
+  double _toRadians(double degrees) => degrees * math.pi / 180;
 }

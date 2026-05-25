@@ -12,16 +12,18 @@ class StorageService {
     required XFile image,
   }) async {
     try {
-      final fileName = '${userId}_${reportId}_${DateTime.now().millisecondsSinceEpoch}';
+      final extension = image.name.split('.').last;
+      final fileName =
+          '${userId}_${reportId}_${DateTime.now().millisecondsSinceEpoch}.$extension';
       final ref = _storage.ref().child('report_images/$fileName');
-      
+
       final uploadTask = ref.putFile(File(image.path));
       final snapshot = await uploadTask;
-      
+
       final downloadUrl = await snapshot.ref.getDownloadURL();
       return downloadUrl;
     } catch (e) {
-      return null;
+      throw Exception('Failed to upload report image: $e');
     }
   }
 
@@ -33,7 +35,7 @@ class StorageService {
       );
       return image;
     } catch (e) {
-            return null;
+      return null;
     }
   }
 
@@ -45,7 +47,7 @@ class StorageService {
       );
       return image;
     } catch (e) {
-            return null;
+      return null;
     }
   }
 }

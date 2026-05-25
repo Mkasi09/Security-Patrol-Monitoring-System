@@ -16,7 +16,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   bool _isLoading = false;
   bool _isEditing = false;
-  
+
   late TextEditingController _nameController;
   late TextEditingController _phoneController;
   late TextEditingController _emailController;
@@ -45,7 +45,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _saveProfile() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final user = authProvider.currentUser;
-    
+
     if (user == null) return;
 
     setState(() => _isLoading = true);
@@ -53,7 +53,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await _firestoreService.updateUser(user.id, {
         'name': _nameController.text.trim(),
-        'phoneNumber': _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
+        'phoneNumber': _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
       });
 
       // Refresh user data
@@ -89,11 +91,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
         final user = authProvider.currentUser;
-        
+
         if (user == null) {
-          return const Center(
-            child: Text('No user data available'),
-          );
+          return const Center(child: Text('No user data available'));
         }
 
         return Scaffold(
@@ -186,30 +186,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Personal Information',
-            style: AppTheme.heading3,
-          ),
+          Text('Personal Information', style: AppTheme.heading3),
           const SizedBox(height: 20),
-          
+
           _buildFormField(
             label: 'Full Name',
             controller: _nameController,
             enabled: _isEditing,
             icon: Icons.person,
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           _buildFormField(
             label: 'Email Address',
             controller: _emailController,
             enabled: false, // Email cannot be changed
             icon: Icons.email,
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           _buildFormField(
             label: 'Phone Number',
             controller: _phoneController,
@@ -217,17 +214,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.phone,
             hintText: 'Enter phone number',
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           _buildInfoRow(
             label: 'Account Created',
             value: _formatDate(user.createdAt),
             icon: Icons.calendar_today,
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           _buildInfoRow(
             label: 'Password Status',
             value: user.hasResetPassword ? 'Updated' : 'Default',
@@ -300,10 +297,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
               Text(
                 value,
@@ -338,23 +332,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Account Actions',
-            style: AppTheme.heading3,
-          ),
+          Text('Account Actions', style: AppTheme.heading3),
           const SizedBox(height: 16),
-          
+
           _buildActionTile(
             title: 'Change Password',
             subtitle: 'Update your account password',
             icon: Icons.lock_outline,
             onTap: () {
-              Navigator.pushNamed(context, '/password-reset');
+              Navigator.pushNamed(context, '/password_reset');
             },
           ),
-          
+
           const Divider(height: 1),
-          
+
           _buildActionTile(
             title: 'Sign Out',
             subtitle: 'Sign out from your account',

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../models/report.dart';
-import '../services/firestore_service.dart';
-import '../providers/auth_provider.dart';
-import '../widgets/modern_app_bar.dart';
 import 'package:provider/provider.dart';
+import '../models/report.dart';
+import '../providers/auth_provider.dart';
+import '../services/firestore_service.dart';
+import '../theme/app_theme.dart';
 import 'report_detail_screen.dart';
 
 class PatrolHistoryScreen extends StatefulWidget {
@@ -19,12 +19,7 @@ class _PatrolHistoryScreenState extends State<PatrolHistoryScreen> {
   List<Report> _reports = [];
   bool _isLoading = true;
   String? _errorMessage;
-  
-  // Filtering options
   String _selectedStatus = 'all';
-  DateTime? _startDate;
-  DateTime? _endDate;
-  String _selectedLocation = 'all';
 
   @override
   void initState() {
@@ -39,15 +34,19 @@ class _PatrolHistoryScreenState extends State<PatrolHistoryScreen> {
     });
 
     try {
-      final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
-      if (user != null) {
-        final reports = await _firestoreService.getReportsByUserId(user.id);
-        setState(() {
-          _reports = _filterReports(reports);
-          _isLoading = false;
-        });
-      }
+      final user = Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ).currentUser;
+      if (user == null) throw Exception('User not authenticated');
+      final reports = await _firestoreService.getReportsByUserId(user.id);
+      if (!mounted) return;
+      setState(() {
+        _reports = reports;
+        _isLoading = false;
+      });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _errorMessage = 'Failed to load reports: $e';
@@ -55,156 +54,221 @@ class _PatrolHistoryScreenState extends State<PatrolHistoryScreen> {
     }
   }
 
-  List<Report> _filterReports(List<Report> reports) {
-    List<Report> filtered = List.from(reports);
+  @override
+  Widget build(BuildContext context) {
+    final visibleReports = _filteredReports();
 
-    // Filter by status
-    if (_selectedStatus != 'all') {
-      filtered = filtered.where((report) => report.status == _selectedStatus).toList();
-    }
-
-    // Filter by date range
-    if (_startDate != null) {
-      filtered = filtered.where((report) => report.timestamp.isAfter(_startDate!)).toList();
-    }
-    if (_endDate != null) {
-      filtered = filtered.where((report) => report.timestamp.isBefore(_endDate!.add(const Duration(days: 1)))).toList();
-    }
-
-    // Filter by location
-    if (_selectedLocation != 'all') {
-      filtered = filtered.where((report) => report.locationName == _selectedLocation).toList();
-    }
-
-    return filtered;
-  }
-
-  void _showFilterDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Filter Reports'),
-        content: StatefulBuilder(
-          builder: (context, setState) => SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Status filter
-                const Text('Status', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  value: _selectedStatus,
-                  items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All Status')),
-                    DropdownMenuItem(value: 'all_clear', child: Text('All Clear')),
-                    DropdownMenuItem(value: 'suspicious', child: Text('Suspicious')),
-                    DropdownMenuItem(value: 'emergency', child: Text('Emergency')),
-                  ],
-                  onChanged: (value) {
-                    setState(() => _selectedStatus = value!);
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Start date filter
-                const Text('Start Date', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                ListTile(
-                  title: Text(_startDate != null 
-                    ? DateFormat('MMM dd, yyyy').format(_startDate!)
-                    : 'Select start date'),
-                  trailing: const Icon(Icons.calendar_today),
-                  onTap: () async {
-                    final date = await showDatePicker(
-                      context: context,
-                      initialDate: _startDate ?? DateTime.now(),
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime.now(),
-                    );
-                    if (date != null) {
-                      setState(() => _startDate = date);
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // End date filter
-                const Text('End Date', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                ListTile(
-                  title: Text(_endDate != null 
-                    ? DateFormat('MMM dd, yyyy').format(_endDate!)
-                    : 'Select end date'),
-                  trailing: const Icon(Icons.calendar_today),
-                  onTap: () async {
-                    final date = await showDatePicker(
-                      context: context,
-                      initialDate: _endDate ?? DateTime.now(),
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime.now(),
-                    );
-                    if (date != null) {
-                      setState(() => _endDate = date);
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Location filter
-                const Text('Location', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  value: _selectedLocation,
-                  items: [
-                    const DropdownMenuItem(value: 'all', child: Text('All Locations')),
-                    ..._getLocationOptions().map((location) => 
-                      DropdownMenuItem(value: location, child: Text(location))),
-                  ],
-                  onChanged: (value) {
-                    setState(() => _selectedLocation = value!);
-                  },
-                ),
-              ],
-            ),
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _loadReports,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+            children: [
+              _buildHeader(),
+              const SizedBox(height: 14),
+              _buildFilters(),
+              const SizedBox(height: 14),
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.only(top: 80),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_errorMessage != null)
+                _messageState(
+                  Icons.error_outline,
+                  'Unable to load history',
+                  _errorMessage!,
+                )
+              else if (visibleReports.isEmpty)
+                _messageState(
+                  Icons.history,
+                  'No reports found',
+                  'Reports matching this filter will appear here.',
+                )
+              else
+                ...visibleReports.map(_buildReportCard),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _selectedStatus = 'all';
-                _startDate = null;
-                _endDate = null;
-                _selectedLocation = 'all';
-              });
-            },
-            child: const Text('Reset'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _loadReports();
-            },
-            child: const Text('Apply'),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final todayCount = _reports.where((report) {
+      final now = DateTime.now();
+      return report.timestamp.year == now.year &&
+          report.timestamp.month == now.month &&
+          report.timestamp.day == now.day;
+    }).length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          _summary('Today', todayCount, AppTheme.primaryColor),
+          _divider(),
+          _summary('Total', _reports.length, AppTheme.secondaryColor),
+          _divider(),
+          _summary(
+            'Alerts',
+            _reports.where((r) => r.status != 'all_clear').length,
+            AppTheme.warningColor,
           ),
         ],
       ),
     );
   }
 
-  List<String> _getLocationOptions() {
-    final locations = _reports.map((report) => report.locationName).toSet().toList();
-    locations.sort();
-    return locations;
+  Widget _summary(String label, int value, Color color) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value.toString(),
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+          Text(label, style: AppTheme.caption),
+        ],
+      ),
+    );
   }
 
+  Widget _divider() =>
+      Container(width: 1, height: 34, color: Colors.grey.shade200);
 
-  
-  String _getStatusDisplay(String status) {
+  Widget _buildFilters() {
+    final filters = {
+      'all': 'All',
+      'all_clear': 'Clear',
+      'suspicious': 'Suspicious',
+      'emergency': 'Emergency',
+    };
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: filters.entries.map((entry) {
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              label: Text(entry.value),
+              selected: _selectedStatus == entry.key,
+              onSelected: (_) => setState(() => _selectedStatus = entry.key),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildReportCard(Report report) {
+    final color = _statusColor(report.status);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ReportDetailScreen(report: report),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(_statusIcon(report.status), color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            report.locationName,
+                            style: AppTheme.subtitle1,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (report.imageUrl != null)
+                          const Icon(
+                            Icons.image,
+                            size: 18,
+                            color: AppTheme.secondaryColor,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _statusText(report.status),
+                      style: TextStyle(color: color),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      DateFormat(
+                        'MMM dd, yyyy - HH:mm',
+                      ).format(report.timestamp),
+                      style: AppTheme.caption,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _messageState(IconData icon, String title, String message) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 80),
+      child: Column(
+        children: [
+          Icon(icon, size: 58, color: AppTheme.textSecondary),
+          const SizedBox(height: 12),
+          Text(title, style: AppTheme.heading3, textAlign: TextAlign.center),
+          const SizedBox(height: 6),
+          Text(message, style: AppTheme.body2, textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+
+  List<Report> _filteredReports() {
+    if (_selectedStatus == 'all') return _reports;
+    return _reports
+        .where((report) => report.status == _selectedStatus)
+        .toList();
+  }
+
+  String _statusText(String status) {
     switch (status) {
       case 'all_clear':
         return 'All Clear';
@@ -213,119 +277,31 @@ class _PatrolHistoryScreenState extends State<PatrolHistoryScreen> {
       case 'emergency':
         return 'Emergency';
       default:
-        return status;
+        return 'Unknown';
     }
   }
 
-  
-
-  Color _getStatusColor(String status) {
+  Color _statusColor(String status) {
     switch (status) {
       case 'all_clear':
-        return Colors.green;
+        return AppTheme.successColor;
       case 'suspicious':
-        return Colors.orange;
+        return AppTheme.warningColor;
       case 'emergency':
-        return Colors.red;
+        return AppTheme.errorColor;
       default:
-        return Colors.blue;
+        return AppTheme.infoColor;
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _errorMessage != null
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _loadReports,
-                          child: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  )
-                : _reports.isEmpty
-                    ? const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.history, size: 64, color: Colors.grey),
-                            SizedBox(height: 16),
-                            Text('No patrol reports found', style: TextStyle(fontSize: 18)),
-                            SizedBox(height: 8),
-                            Text('Start scanning locations to build your history', style: TextStyle(color: Colors.grey)),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _reports.length,
-                        itemBuilder: (context, index) {
-                          final report = _reports[index];
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: _getStatusColor(report.status).withOpacity(0.2),
-                              child: Icon(
-                                _getStatusIcon(report.status),
-                                color: _getStatusColor(report.status),
-                              ),
-                            ),
-                            title: Text(
-                              report.locationName,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _getStatusDisplay(report.status),
-                                  style: TextStyle(
-                                    color: _getStatusColor(report.status),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  DateFormat('MMM dd, yyyy - hh:mm a').format(report.timestamp),
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            ),
-                            trailing: const Icon(Icons.arrow_forward_ios),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => ReportDetailScreen(report: report),
-                                ),
-                              );
-                            },
-                          ),
-                        );
-                      },
-                    ),
-      ),
-    );
-  }
-
-  IconData _getStatusIcon(String status) {
+  IconData _statusIcon(String status) {
     switch (status) {
       case 'all_clear':
         return Icons.check_circle;
       case 'suspicious':
         return Icons.warning;
       case 'emergency':
-        return Icons.error;
+        return Icons.emergency;
       default:
         return Icons.info;
     }

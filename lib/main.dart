@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:magzmotron/firebase_options.dart';
 import 'package:magzmotron/screens/locations_list_screen.dart';
 import 'package:magzmotron/screens/active_guards_screen.dart';
@@ -17,17 +18,26 @@ import 'screens/user_management_screen.dart';
 import 'screens/add_user_screen.dart';
 import 'screens/password_reset_screen.dart';
 import 'screens/patrol_history_screen.dart';
+import 'screens/patrol_schedule_screen.dart';
+import 'screens/admin_reports_screen.dart';
+import 'services/push_notification_service.dart';
 import 'theme/app_theme.dart';
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  await PushNotificationService.instance.initialize();
 
   runApp(MyApp());
 }
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -44,6 +54,7 @@ class MyApp extends StatelessWidget {
           '/forgot_password': (context) => const ForgotPasswordScreen(),
           '/guard': (context) => const GuardHomeScreen(),
           '/manager': (context) => const ManagerDashboardScreen(),
+          '/manager_dashboard': (context) => const ManagerDashboardScreen(),
           '/user_management': (context) => const UserManagementScreen(),
           '/add_user': (context) => const AddUserScreen(),
           '/active_guards': (context) => const ActiveGuardsScreen(),
@@ -53,8 +64,9 @@ class MyApp extends StatelessWidget {
           '/patrol_history': (context) => const PatrolHistoryScreen(),
           '/alert_center': (context) => const AdminAlertScreen(),
           '/enhanced_reports': (context) => const EnhancedReportScreen(),
-          '/all_reports': (context) => const AdminAlertScreen(),
+          '/all_reports': (context) => const AdminReportsScreen(),
           '/bulk_qr_generator': (context) => const BulkQRGeneratorScreen(),
+          '/patrol_schedule': (context) => const PatrolScheduleScreen(),
         },
       ),
     );

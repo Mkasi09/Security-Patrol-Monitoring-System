@@ -36,15 +36,56 @@ class ModernNavigationDrawer extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
                   if (userRole == 'manager') ...[
-                    _item(context, Icons.dashboard, "Dashboard", currentPage == 'dashboard'),
-                    _item(context, Icons.assessment, "Reports", currentPage == 'reports'),
-                    _item(context, Icons.people, "Guards", currentPage == 'guards'),
-                    _item(context, Icons.location_on, "Locations", currentPage == 'locations'),
-                    _item(context, Icons.manage_accounts, "User Management", currentPage == 'user_management'),
+                    _item(
+                      context,
+                      Icons.dashboard,
+                      "Dashboard",
+                      currentPage == 'dashboard',
+                    ),
+                    _item(
+                      context,
+                      Icons.assessment,
+                      "Reports",
+                      currentPage == 'reports',
+                    ),
+                    _item(
+                      context,
+                      Icons.people,
+                      "Guards",
+                      currentPage == 'guards',
+                    ),
+                    _item(
+                      context,
+                      Icons.location_on,
+                      "Locations",
+                      currentPage == 'locations',
+                    ),
+                    _item(
+                      context,
+                      Icons.manage_accounts,
+                      "User Management",
+                      currentPage == 'user_management',
+                    ),
                   ] else ...[
                     _item(context, Icons.home, "Home", currentPage == 'home'),
-                    _item(context, Icons.qr_code_scanner, "Scan Location", currentPage == 'scan'),
-                    _item(context, Icons.history, "My Reports", currentPage == 'history'),
+                    _item(
+                      context,
+                      Icons.qr_code_scanner,
+                      "Scan Location",
+                      currentPage == 'scan',
+                    ),
+                    _item(
+                      context,
+                      Icons.event_note,
+                      "Assignments",
+                      currentPage == 'assignments',
+                    ),
+                    _item(
+                      context,
+                      Icons.history,
+                      "My Reports",
+                      currentPage == 'history',
+                    ),
                   ],
 
                   const SizedBox(height: 10),
@@ -107,36 +148,38 @@ class ModernNavigationDrawer extends StatelessWidget {
                 Text(
                   email,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
                 const SizedBox(height: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white24,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     userRole == 'manager' ? "Manager" : "Guard",
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 10),
                   ),
-                )
+                ),
               ],
             ),
-          )
+          ),
         ],
       ),
     );
   }
 
   /// 🔹 MENU ITEM (Modern Style)
-  Widget _item(BuildContext context, IconData icon, String title, bool selected) {
+  Widget _item(
+    BuildContext context,
+    IconData icon,
+    String title,
+    bool selected,
+  ) {
     return GestureDetector(
       onTap: () {
         Navigator.pop(context);
@@ -145,6 +188,17 @@ class ModernNavigationDrawer extends StatelessWidget {
           Navigator.pushNamed(context, '/user_management');
         } else if (title == "My Reports") {
           Navigator.pushNamed(context, '/patrol_history');
+        } else if (title == "Home") {
+          // Navigate to guard home - already there, just close drawer
+        } else if (title == "Scan Location") {
+          // Navigate to scan tab - this would need to communicate with parent
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Use the Scan tab at the bottom')),
+          );
+        } else if (title == "Assignments") {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Use the Tasks tab at the bottom')),
+          );
         }
       },
       child: AnimatedContainer(
@@ -162,17 +216,14 @@ class ModernNavigationDrawer extends StatelessWidget {
             Icon(
               icon,
               size: 22,
-              color: selected
-                  ? AppTheme.primaryColor
-                  : AppTheme.textSecondary,
+              color: selected ? AppTheme.primaryColor : AppTheme.textSecondary,
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
                 title,
                 style: TextStyle(
-                  fontWeight:
-                      selected ? FontWeight.w600 : FontWeight.w500,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                   color: selected
                       ? AppTheme.primaryColor
                       : AppTheme.textPrimary,
@@ -180,7 +231,7 @@ class ModernNavigationDrawer extends StatelessWidget {
               ),
             ),
             if (selected)
-              Icon(Icons.circle, size: 8, color: AppTheme.primaryColor)
+              Icon(Icons.circle, size: 8, color: AppTheme.primaryColor),
           ],
         ),
       ),
@@ -199,7 +250,7 @@ class ModernNavigationDrawer extends StatelessWidget {
           onTap: () async {
             await auth.signOut();
             if (context.mounted) {
-              Navigator.pushReplacementNamed(context, '/login');
+              Navigator.pushReplacementNamed(context, '/');
             }
           },
           child: Container(
@@ -212,8 +263,10 @@ class ModernNavigationDrawer extends StatelessWidget {
               children: [
                 Icon(Icons.logout, color: AppTheme.errorColor),
                 const SizedBox(width: 10),
-                const Text("Logout",
-                    style: TextStyle(fontWeight: FontWeight.w600)),
+                const Text(
+                  "Logout",
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
               ],
             ),
           ),

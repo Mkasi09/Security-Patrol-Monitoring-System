@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:geolocator/geolocator.dart';
 import 'dart:io';
 import '../services/location_service.dart';
 import '../services/firestore_service.dart';
 import '../services/email_service.dart';
 import '../services/alert_service.dart';
+import '../services/storage_service.dart';
 import '../providers/auth_provider.dart';
 import '../models/report.dart';
 import '../models/alert.dart';
+import '../theme/app_theme.dart';
 import '../widgets/modern_app_bar.dart';
 import 'package:provider/provider.dart';
 
@@ -35,11 +36,10 @@ class _ReportScreenState extends State<ReportScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   final EmailService _emailService = EmailService();
   final AlertService _alertService = AlertService();
+  final StorageService _storageService = StorageService();
 
   String _selectedStatus = 'all_clear';
-  File? _selectedImage;
-  bool _isVerifyingLocation = false;
-  bool _isLocationVerified = true;
+  XFile? _selectedImage;
   bool _isSubmitting = false;
   String? _errorMessage;
 
@@ -52,10 +52,7 @@ class _ReportScreenState extends State<ReportScreen> {
   @override
   void initState() {
     super.initState();
-    // Location verification disabled for now
-    setState(() {
-      _isLocationVerified = true;
-    });
+    // Location verification intentionally remains disabled for now.
   }
 
   @override
@@ -64,17 +61,12 @@ class _ReportScreenState extends State<ReportScreen> {
     super.dispose();
   }
 
-  
   Future<void> _pickImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 80,
-    );
+    final image = await _storageService.pickImageFromCamera();
 
     if (image != null) {
       setState(() {
-        _selectedImage = File(image.path);
+        _selectedImage = image;
       });
     }
   }
@@ -83,6 +75,11 @@ class _ReportScreenState extends State<ReportScreen> {
     // Location verification disabled - always true
 
     if (_formKey.currentState!.validate()) {
+      if (_selectedStatus == 'emergency') {
+        final confirmed = await _confirmEmergencySubmission();
+        if (!confirmed) return;
+      }
+
       setState(() {
         _isSubmitting = true;
         _errorMessage = null;
@@ -95,17 +92,7 @@ class _ReportScreenState extends State<ReportScreen> {
           position = await _locationService.getCurrentPosition();
         } catch (e) {
           // If location fails, use default coordinates (center of map)
-          position = Position(
-            latitude: 0.0,
-            longitude: 0.0,
-            timestamp: DateTime.now(),
-            accuracy: 0.0,
-            altitude: 0.0,
-            altitudeAccuracy: 0.0,
-            heading: 0.0,
-            speed: 0.0,
-            speedAccuracy: 0.0, headingAccuracy: 0.0,
-          );
+          position = const PatrolPosition(latitude: 0.0, longitude: 0.0);
         }
 
         // Get current user
@@ -116,17 +103,19 @@ class _ReportScreenState extends State<ReportScreen> {
           throw Exception('User not authenticated');
         }
 
-        // Upload image if selected
+        final reportId = DateTime.now().millisecondsSinceEpoch.toString();
         String? imageUrl;
         if (_selectedImage != null) {
-          // TODO: Implement actual Firebase Storage upload
-          // For now, we'll skip image upload
-          imageUrl = null;
+          imageUrl = await _storageService.uploadImage(
+            userId: currentUser.id,
+            reportId: reportId,
+            image: _selectedImage!,
+          );
         }
 
         // Create report object
         final report = Report(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          id: reportId,
           userId: currentUser.id,
           userName: currentUser.name ?? 'Unknown User',
           locationId: widget.locationId,
@@ -145,14 +134,20 @@ class _ReportScreenState extends State<ReportScreen> {
         // Create alert in alert center for managers
         await _createPatrolReportAlert(report);
 
-        // Send email notification to managers
-        await _emailService.sendReportNotificationToManager(report);
+        // Cloud Function will automatically send email notifications to managers
+        debugPrint(
+          '📧 Cloud Function will trigger automatically to notify managers',
+        );
+        final managerCount = await _emailService.getManagerCount();
+        debugPrint(
+          '👥 Found $managerCount managers in system - they will receive email alerts',
+        );
 
         if (mounted) {
           setState(() {
             _isSubmitting = false;
           });
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Report submitted successfully'),
@@ -173,10 +168,8 @@ class _ReportScreenState extends State<ReportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: ModernAppBar(
-        title: 'Submit Report',
-        showProfile: true,
-      ),
+      backgroundColor: AppTheme.backgroundColor,
+      appBar: ModernAppBar(title: 'Submit Report', showProfile: true),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -184,93 +177,15 @@ class _ReportScreenState extends State<ReportScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Location verification status
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      if (_isVerifyingLocation)
-                        const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      else if (_isLocationVerified)
-                        const Icon(Icons.check_circle, color: Colors.green)
-                      else
-                        const Icon(Icons.error, color: Colors.red),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          _isVerifyingLocation
-                              ? 'Verifying location...'
-                              : _isLocationVerified
-                                  ? 'Location verified'
-                                  : 'Location verification failed',
-                          style: TextStyle(
-                            color: _isLocationVerified
-                                ? Colors.green
-                                : Colors.red,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              _buildLocationCard(),
               const SizedBox(height: 16),
 
-              // Location info
-              Text(
-                'Location: ${widget.locationName}',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                'QR Code: ${widget.qrCode}',
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 24),
+              Text('Status', style: AppTheme.heading3),
+              const SizedBox(height: 10),
+              _buildStatusPicker(),
+              const SizedBox(height: 20),
 
-              // Status selection
-              const Text(
-                'Status',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ..._statusOptions.entries.map((entry) {
-                return RadioListTile<String>(
-                  title: Text(entry.value),
-                  value: entry.key,
-                  groupValue: _selectedStatus,
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedStatus = value!;
-                    });
-                  },
-                  activeColor: _getStatusColor(entry.key),
-                );
-              }),
-              const SizedBox(height: 24),
-
-              // Notes
-              const Text(
-                'Notes',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              Text('Notes', style: AppTheme.heading3),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _notesController,
@@ -286,64 +201,12 @@ class _ReportScreenState extends State<ReportScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              // Image upload
-              const Text(
-                'Evidence Photo (Optional)',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              Text('Evidence Photo', style: AppTheme.heading3),
               const SizedBox(height: 8),
-              GestureDetector(
-                onTap: _pickImage,
-                child: Container(
-                  height: 200,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: _selectedImage != null
-                      ? Stack(
-                          children: [
-                            Positioned.fill(
-                              child: Image.file(
-                                _selectedImage!,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                            Positioned(
-                              top: 8,
-                              right: 8,
-                              child: IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () {
-                                  setState(() {
-                                    _selectedImage = null;
-                                  });
-                                },
-                              ),
-                            ),
-                          ],
-                        )
-                      : const Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.camera_alt, size: 48, color: Colors.grey),
-                              SizedBox(height: 8),
-                              Text(
-                                'Tap to take photo',
-                                style: TextStyle(color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 24),
+              _buildPhotoPicker(),
+              const SizedBox(height: 20),
 
               // Error message
               if (_errorMessage != null)
@@ -379,6 +242,134 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  Widget _buildLocationCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.location_on, color: AppTheme.primaryColor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.locationName, style: AppTheme.subtitle1),
+                const SizedBox(height: 4),
+                Text('QR: ${widget.qrCode}', style: AppTheme.caption),
+              ],
+            ),
+          ),
+          const Icon(Icons.check_circle, color: AppTheme.successColor),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusPicker() {
+    return Column(
+      children: _statusOptions.entries.map((entry) {
+        final selected = _selectedStatus == entry.key;
+        final color = _getStatusColor(entry.key);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: InkWell(
+            onTap: () => setState(() => _selectedStatus = entry.key),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: selected ? color.withValues(alpha: 0.1) : Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: selected ? color : Colors.grey.shade200,
+                  width: selected ? 1.5 : 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(_getStatusIcon(entry.key), color: color),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(entry.value, style: AppTheme.subtitle2)),
+                  Icon(
+                    selected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_off,
+                    color: selected ? color : AppTheme.textSecondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildPhotoPicker() {
+    return InkWell(
+      onTap: _pickImage,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        height: 210,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: _selectedImage != null
+            ? Stack(
+                children: [
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(
+                        File(_selectedImage!.path),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: CircleAvatar(
+                      backgroundColor: Colors.white,
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.delete,
+                          color: AppTheme.errorColor,
+                        ),
+                        onPressed: () => setState(() => _selectedImage = null),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.camera_alt, size: 46, color: Colors.grey.shade500),
+                  const SizedBox(height: 8),
+                  Text('Tap to take photo', style: AppTheme.subtitle2),
+                  const SizedBox(height: 4),
+                  Text('Optional evidence attachment', style: AppTheme.caption),
+                ],
+              ),
+      ),
+    );
+  }
+
   Future<void> _createPatrolReportAlert(Report report) async {
     try {
       // Determine alert priority based on report status
@@ -399,7 +390,8 @@ class _ReportScreenState extends State<ReportScreen> {
 
       // Create alert title and message
       String title = 'Patrol Report: ${report.locationName}';
-      String message = '${report.userName} submitted a ${_getStatusText(report.status)} report at ${report.locationName}';
+      String message =
+          '${report.userName} submitted a ${_getStatusText(report.status)} report at ${report.locationName}';
       if (report.notes.isNotEmpty) {
         message += '\n\nNotes: ${report.notes}';
       }
@@ -427,6 +419,31 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
+  Future<bool> _confirmEmergencySubmission() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Submit emergency report?'),
+        content: const Text(
+          'This will create a critical alert for managers. Submit only if immediate attention is required.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Submit Emergency'),
+          ),
+        ],
+      ),
+    );
+
+    return confirmed ?? false;
+  }
+
   String _getStatusText(String status) {
     switch (status) {
       case 'all_clear':
@@ -450,6 +467,19 @@ class _ReportScreenState extends State<ReportScreen> {
         return Colors.red;
       default:
         return Colors.blue;
+    }
+  }
+
+  IconData _getStatusIcon(String status) {
+    switch (status) {
+      case 'all_clear':
+        return Icons.check_circle;
+      case 'suspicious':
+        return Icons.warning;
+      case 'emergency':
+        return Icons.emergency;
+      default:
+        return Icons.info;
     }
   }
 }

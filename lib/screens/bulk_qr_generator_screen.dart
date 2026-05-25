@@ -1,8 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../models/location.dart';
 import '../services/firestore_service.dart';
@@ -38,9 +39,9 @@ class _BulkQRGeneratorScreenState extends State<BulkQRGeneratorScreen> {
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load locations: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load locations: $e')));
     }
   }
 
@@ -85,25 +86,25 @@ class _BulkQRGeneratorScreenState extends State<BulkQRGeneratorScreen> {
       );
 
       final pdf = await _createPDF();
+      final bytes = await pdf.save();
+      final directory = await getTemporaryDirectory();
+      final fileName = 'qr_codes_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsBytes(bytes);
 
       Navigator.pop(context);
 
-      await Printing.sharePdf(
-        bytes: await pdf.save(),
-        filename: 'qr_codes_${DateTime.now().millisecondsSinceEpoch}.pdf',
-      );
-
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('PDF downloaded successfully'),
+        SnackBar(
+          content: Text('PDF saved to ${file.path}'),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to generate PDF: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to generate PDF: $e')));
     }
   }
 
@@ -114,7 +115,7 @@ class _BulkQRGeneratorScreenState extends State<BulkQRGeneratorScreen> {
 
     for (var i = 0; i < _selectedLocations.length; i += 4) {
       final batch = _selectedLocations.skip(i).take(4).toList();
-      
+
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
@@ -127,7 +128,11 @@ class _BulkQRGeneratorScreenState extends State<BulkQRGeneratorScreen> {
                   child: pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.center,
                     children: [
-                      pw.Image(pw.MemoryImage(logoBytes), width: 40, height: 40),
+                      pw.Image(
+                        pw.MemoryImage(logoBytes),
+                        width: 40,
+                        height: 40,
+                      ),
                       pw.SizedBox(width: 10),
                       pw.Text(
                         'Location QR Codes',
@@ -144,7 +149,9 @@ class _BulkQRGeneratorScreenState extends State<BulkQRGeneratorScreen> {
                   spacing: 20,
                   runSpacing: 20,
                   alignment: pw.WrapAlignment.center,
-                  children: batch.map((location) => _buildQRCodeBox(location)).toList(),
+                  children: batch
+                      .map((location) => _buildQRCodeBox(location))
+                      .toList(),
                 ),
               ],
             );
@@ -177,20 +184,14 @@ class _BulkQRGeneratorScreenState extends State<BulkQRGeneratorScreen> {
           pw.SizedBox(height: 10),
           pw.Text(
             location.name,
-            style: pw.TextStyle(
-              fontSize: 14,
-              fontWeight: pw.FontWeight.bold,
-            ),
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
             textAlign: pw.TextAlign.center,
             maxLines: 2,
           ),
           pw.SizedBox(height: 4),
           pw.Text(
             location.qrCode,
-            style: pw.TextStyle(
-              fontSize: 10,
-              color: PdfColors.grey600,
-            ),
+            style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
           ),
         ],
       ),
@@ -223,7 +224,10 @@ class _BulkQRGeneratorScreenState extends State<BulkQRGeneratorScreen> {
                 children: [
                   // Select All Header
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       border: Border(
@@ -247,9 +251,7 @@ class _BulkQRGeneratorScreenState extends State<BulkQRGeneratorScreen> {
                         const Spacer(),
                         Text(
                           '${_locations.length} total',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                          ),
+                          style: TextStyle(color: Colors.grey.shade600),
                         ),
                       ],
                     ),
@@ -264,7 +266,9 @@ class _BulkQRGeneratorScreenState extends State<BulkQRGeneratorScreen> {
                             itemCount: _locations.length,
                             itemBuilder: (context, index) {
                               final location = _locations[index];
-                              final isSelected = _selectedLocations.contains(location);
+                              final isSelected = _selectedLocations.contains(
+                                location,
+                              );
 
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 12),
@@ -287,13 +291,15 @@ class _BulkQRGeneratorScreenState extends State<BulkQRGeneratorScreen> {
                                       children: [
                                         Checkbox(
                                           value: isSelected,
-                                          onChanged: (_) => _toggleLocation(location),
+                                          onChanged: (_) =>
+                                              _toggleLocation(location),
                                           activeColor: AppTheme.primaryColor,
                                         ),
                                         const SizedBox(width: 12),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 location.name,
@@ -330,8 +336,12 @@ class _BulkQRGeneratorScreenState extends State<BulkQRGeneratorScreen> {
                                           height: 60,
                                           decoration: BoxDecoration(
                                             color: Colors.white,
-                                            borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(color: Colors.grey.shade200),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            border: Border.all(
+                                              color: Colors.grey.shade200,
+                                            ),
                                           ),
                                           child: QrImageView(
                                             data: location.qrCode,
@@ -398,11 +408,7 @@ class _BulkQRGeneratorScreenState extends State<BulkQRGeneratorScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.location_off,
-            size: 80,
-            color: Colors.grey.shade400,
-          ),
+          Icon(Icons.location_off, size: 80, color: Colors.grey.shade400),
           const SizedBox(height: 16),
           Text(
             'No locations found',
@@ -415,9 +421,7 @@ class _BulkQRGeneratorScreenState extends State<BulkQRGeneratorScreen> {
           const SizedBox(height: 8),
           Text(
             'Add locations first to generate QR codes',
-            style: TextStyle(
-              color: Colors.grey.shade500,
-            ),
+            style: TextStyle(color: Colors.grey.shade500),
           ),
         ],
       ),

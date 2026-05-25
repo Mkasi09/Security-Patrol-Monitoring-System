@@ -1,12 +1,13 @@
 import 'package:flutter/foundation.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../services/push_notification_service.dart';
 import '../models/user.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
   final FirestoreService _firestoreService = FirestoreService();
-  
+
   User? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
@@ -32,17 +33,27 @@ class AuthProvider with ChangeNotifier {
           createdAt: DateTime.now(),
         );
         notifyListeners();
-        
+
         // Then fetch complete user data from Firestore
         try {
           final userData = await _firestoreService.getUserById(user.uid);
           if (userData != null) {
             _currentUser = userData;
             notifyListeners();
+            await PushNotificationService.instance.registerCurrentDevice(
+              role: userData.role,
+            );
+          } else {
+            await PushNotificationService.instance.registerCurrentDevice(
+              role: _currentUser?.role,
+            );
           }
         } catch (e) {
           // If Firestore fetch fails, keep the default user
           debugPrint('Failed to fetch user data from Firestore: $e');
+          await PushNotificationService.instance.registerCurrentDevice(
+            role: _currentUser?.role,
+          );
         }
       } else {
         _currentUser = null;
@@ -51,10 +62,7 @@ class AuthProvider with ChangeNotifier {
     });
   }
 
-  Future<bool> signIn({
-    required String email,
-    required String password,
-  }) async {
+  Future<bool> signIn({required String email, required String password}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -99,9 +107,7 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> resetPassword({
-    required String email,
-  }) async {
+  Future<bool> resetPassword({required String email}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -120,6 +126,7 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    await PushNotificationService.instance.unregisterCurrentDevice();
     await _authService.signOut();
   }
 
@@ -130,7 +137,7 @@ class AuthProvider with ChangeNotifier {
 
   Future<bool> needsPasswordReset() async {
     if (_currentUser == null) return false;
-    
+
     try {
       final user = await _firestoreService.getUserById(_currentUser!.id);
       if (user != null) {
